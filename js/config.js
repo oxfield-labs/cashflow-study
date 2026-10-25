@@ -2,8 +2,8 @@
 // SUPABASE_URL / SUPABASE_ANON_KEY 를 비워 두면 "로컬 모드"로 동작한다: 응답이 이 브라우저에만 저장되므로 리허설 용도로만 쓴다.
 // anon 키는 공개되어도 되는 키다. (테이블은 RLS로 잠겨 있고 RPC 3개만 열려 있다.) service_role 키는 절대 여기에 넣지 말 것.
 export const CONFIG = {
-  SUPABASE_URL: '',
-  SUPABASE_ANON_KEY: '',
+  SUPABASE_URL: 'https://xiwvncqeqhcnrqmhnrli.supabase.co',
+  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhpd3ZuY3FlcWhjbnJxbWhucmxpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI5Mzg1NzEsImV4cCI6MjEwODUxNDU3MX0.khtovY0eUDCSk_Uko3EwwDqlMZEUz5feRF2XkBULZK4',
 
   STUDY_TITLE: '모바일 금융 앱 화면 인식 연구',
   APP_NAME: 'Cashflow',
