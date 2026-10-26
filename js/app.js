@@ -157,6 +157,7 @@ function frame(inner, { back = false, progress = true, wide = false } = {}) {
 }
 
 const ICON = {
+  mail: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3.5 7l8.5 6 8.5-6"/></svg>',
   clock: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
   lock: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>',
   back: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
@@ -343,7 +344,7 @@ function renderConsent() {
          <li>언제든 중단할 수 있고, 중단해도 불이익은 없습니다.</li>
          ${lab ? '<li>시선 추적 장비로 화면을 보는 동안의 시선이 기록됩니다.</li>' : ''}
        </ul>
-       <p class="small">연구자 연락처: ${esc(CONFIG.RESEARCHER_CONTACT)}<br>생명윤리위원회 심의: ${esc(CONFIG.IRB_NUMBER)}</p>
+       <p class="small">연구자 연락처: ${contactHTML()}<br>생명윤리위원회 심의: ${esc(CONFIG.IRB_NUMBER)}</p>
      </div>
      ${lab && PID ? `<p class="small muted">참가자 ID: <b>${esc(PID)}</b></p>` : ''}
      <label class="agree"><input type="checkbox" id="agree"><span class="box">${ICON.check}</span><span>${lab ? '현장에서 서면 동의를 받았음을 확인합니다 (연구자 확인).' : '위 내용을 읽었으며 연구 참여에 동의합니다.'}</span></label>
@@ -438,6 +439,11 @@ function renderScreenedOut() {
   );
   document.getElementById('copylink').addEventListener('click', () => copyText(location.origin + location.pathname, '링크를 복사했어요.'));
 }
+function contactHTML() {
+  const m = esc(CONFIG.RESEARCHER_EMAIL);
+  return `${esc(CONFIG.RESEARCHER_CONTACT)} <a class="mail-link" href="mailto:${m}">${ICON.mail}<span>${m}</span></a>`;
+}
+
 async function copyText(text, msg) {
   try {
     await navigator.clipboard.writeText(text);
@@ -974,7 +980,7 @@ async function renderEnd() {
      ${CONFIG.SHOW_COMPLETION_CODE ? `<div class="codebox"><small>참여 코드</small><b id="code">${S.code}</b><button class="btn ghost" id="copycode" type="button">코드 복사</button></div>` : ''}
      <div class="card flat withdraw">
        <h2>응답을 철회하고 싶다면</h2>
-       <p>${esc(CONFIG.WITHDRAW_DEADLINE)}까지 연구자(${esc(CONFIG.RESEARCHER_CONTACT)})에게 <b>참여 코드</b>와 함께 요청하시면, 해당 응답을 분석에서 제외하고 삭제합니다. 이름 등은 저장하지 않아 코드로만 찾을 수 있으니 코드를 꼭 보관해 주세요.</p>
+       <p>${esc(CONFIG.WITHDRAW_DEADLINE)}까지 연구자(${contactHTML()})에게 <b>참여 코드</b>와 함께 요청하시면, 해당 응답을 분석에서 제외하고 삭제합니다. 이름 등은 저장하지 않아 코드로만 찾을 수 있으니 코드를 꼭 보관해 주세요.</p>
        ${CONFIG.SHOW_COMPLETION_CODE ? `<a class="btn ghost" id="withdraw" href="mailto:${esc(CONFIG.RESEARCHER_EMAIL)}?subject=${encodeURIComponent('[철회 요청] 참여 코드 ' + S.code)}&body=${encodeURIComponent('참여 코드: ' + S.code + '\n위 코드의 응답을 연구에서 제외하고 삭제해 주세요.')}">이메일로 철회 요청</a>` : ''}
      </div>
      ${store.kind === 'local' ? '<div class="devbox"><p><b>로컬 모드</b>: 데이터가 이 브라우저에만 저장되어 있습니다.</p><button class="btn ghost" id="dl">데이터 내려받기 (JSON)</button> <button class="btn ghost" id="clr">로컬 데이터 지우기</button></div>' : ''}

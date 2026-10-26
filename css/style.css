@@ -420,3 +420,7 @@ html,body{overscroll-behavior-y:none}
 /* 입력 글자색을 명시 (일부 기기에서 흰색으로 보이는 문제 방지) */
 input.num,input[type=text],input[type=number],input[type=tel],input[type=email],textarea{color:var(--ink);-webkit-text-fill-color:var(--ink);caret-color:var(--ink);opacity:1}
 input.num::placeholder,input[type=text]::placeholder,textarea::placeholder{color:#9aa5b4;-webkit-text-fill-color:#9aa5b4;opacity:1}
+
+/* 이메일: 아이콘 + 링크 */
+.mail-link{display:inline-flex;align-items:center;gap:4px;color:#2f5bf5;font-weight:600;text-decoration:none;border-bottom:1px solid rgba(47,91,245,.35);word-break:break-all}
+.mail-link svg{flex:none}

@@ -7,7 +7,7 @@ export const CONFIG = {
 
   STUDY_TITLE: '모바일 금융 앱 화면 인식 연구',
   APP_NAME: 'Cashflow',
-  RESEARCHER_CONTACT: 'Jung Sun Ock · oooks83@gmail.com', // 동의서·디브리핑에 표시
+  RESEARCHER_CONTACT: 'Jung Eun Ock', // 동의서·디브리핑에 표시
   IRB_NUMBER: '심의 진행 중 (파일럿)', // 심의 후 입력
   RESEARCHER_EMAIL: 'oooks83@gmail.com', // 철회 요청 메일 주소 (종료 화면의 '이메일로 철회 요청' 버튼)
   WITHDRAW_DEADLINE: '자료 분석이 시작되기 전', // 이 날짜 이후에는 분석이 시작되어 철회가 어렵다
