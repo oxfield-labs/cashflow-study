@@ -416,3 +416,7 @@ html,body{overscroll-behavior-y:none}
 .shell:not(.wide) .guidebox{margin-top:2px;padding-bottom:14px}
 .shell:not(.wide) .guidebox p+p{margin-top:2px}
 .shell:not(.wide) .titlerow+.lead+.guidebox{margin-top:2px}
+
+/* 입력 글자색을 명시 (일부 기기에서 흰색으로 보이는 문제 방지) */
+input.num,input[type=text],input[type=number],input[type=tel],input[type=email],textarea{color:var(--ink);-webkit-text-fill-color:var(--ink);caret-color:var(--ink);opacity:1}
+input.num::placeholder,input[type=text]::placeholder,textarea::placeholder{color:#9aa5b4;-webkit-text-fill-color:#9aa5b4;opacity:1}

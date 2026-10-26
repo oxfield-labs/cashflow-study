@@ -389,6 +389,18 @@ function renderScreening() {
   );
   const f = document.getElementById('f');
   Q.SCREENING.forEach((it) => restore(it, f, S.screen));
+  const markDone = () => {
+    for (const it of Q.SCREENING) {
+      const box = f.querySelector(`[data-qid="${it.id}"]`);
+      const ok = readItem(it, f) !== null;
+      box.classList.toggle('done', ok);
+      if (ok) box.classList.remove('missing');
+    }
+  };
+  f.addEventListener('input', markDone);
+  f.addEventListener('change', markDone);
+  f.addEventListener('keyup', markDone);
+  markDone();
   document.getElementById('next').addEventListener('click', async () => {
     const { out, firstMissing } = collectItems(Q.SCREENING, f);
     if (firstMissing) {
