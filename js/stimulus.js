@@ -125,12 +125,12 @@ export function buildStimulus(group, N, now = new Date(), endMonth = null) {
   };
 }
 
-// SVG 차트. 모든 집단이 같은 크기·색·눈금 개수·격자를 쓰고 Y축 범위만 다르다.
-export function chartSVG(stim, width = 380, height = 260) {
+// SVG 차트(높이 260→340: 기울기가 더 또렷이 보이도록. 세 집단 모두 같은 크기). 모든 집단이 같은 크기·색·눈금 개수·격자를 쓰고 Y축 범위만 다르다.
+export function chartSVG(stim, width = 380, height = 352) {
   const padL = 56,
     padR = 14,
     padT = 16,
-    padB = 30;
+    padB = 42;
   const plotW = width - padL - padR;
   const plotH = height - padT - padB;
   const y = (v) => padT + ((stim.hi - v) / (stim.hi - stim.lo)) * plotH;
@@ -155,7 +155,7 @@ export function chartSVG(stim, width = 380, height = 260) {
     .filter((p) => p.i > 0)
     .map(
       (p) =>
-        `<text class="xtick" x="${x(p.i).toFixed(2)}" y="${height - 8}" text-anchor="middle">${p.label}</text>`
+        `<text class="xtick" x="${x(p.i).toFixed(2)}" y="${height - 22}" text-anchor="middle">${p.label}</text>`
     )
     .join('');
   const last = pts[pts.length - 1];

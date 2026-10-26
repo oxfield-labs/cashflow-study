@@ -15,7 +15,7 @@ body{margin:0;background:#e9edf2;font-family:var(--font);color:var(--text);font-
 .progress{width:64px;height:4px;border-radius:4px;background:#e5e7eb;overflow:hidden}
 .progress i{display:block;height:100%;background:var(--ink);border-radius:4px;transition:width .3s}
 .iconbtn{width:36px;height:36px;border-radius:50%;border:0;background:#f1f4f8;color:var(--ink);display:grid;place-items:center;cursor:pointer}
-.screen{padding:8px 22px 150px}
+.screen{padding:8px 22px 190px}
 .shell.wide .screen{padding:0 0 120px}
 .h1{font-size:25px;line-height:1.35;font-weight:800;color:var(--ink);margin:18px 0 10px;letter-spacing:-.02em}
 .lead{color:var(--muted);margin:0 0 20px}
@@ -161,11 +161,6 @@ body{margin:0;background:#e9edf2;font-family:var(--font);color:var(--text);font-
 @media (min-width:480px){body{padding:0}.shell{box-shadow:0 0 40px rgba(15,23,42,.08)}}
 
 /* 단계 표시 · 전환 화면 · 설문 가이드 */
-.phases{list-style:none;margin:0;padding:2px 20px 10px;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px;position:sticky;top:52px;background:#fff;z-index:4}
-.phases li{display:flex;flex-direction:column;gap:6px;font-size:11.5px;color:#9ca3af;font-weight:600}
-.phases i{display:block;height:4px;border-radius:4px;background:#e5e7eb}
-.phases li.done i{background:#9aa5b4}.phases li.done{color:#6b7280}
-.phases li.on i{background:var(--ink)}.phases li.on{color:var(--ink);font-weight:800}
 .eyebrow{display:inline-block;margin:14px 0 0;padding:4px 10px;border-radius:999px;background:var(--mint-soft);color:#0b5a44;font-size:12px;font-weight:800;letter-spacing:-.01em}
 .eyebrow+.h1{margin-top:10px}
 .hl{background:linear-gradient(transparent 55%,rgba(31,229,168,.45) 55%);color:inherit;padding:0 1px;border-radius:2px;font-weight:800}
@@ -220,7 +215,6 @@ html,body{overscroll-behavior-y:none}
 .shell:not(.wide) .guide p{font-size:16px;line-height:1.7}
 .shell:not(.wide) .num-dot{width:31px;height:31px;font-size:14px}
 .shell:not(.wide) .eyebrow{font-size:13.5px;padding:5px 12px}
-.shell:not(.wide) .phases li{font-size:13px}
 .shell:not(.wide) .flowcard h2{font-size:15.5px}
 .shell:not(.wide) .flowcard li{grid-template-columns:28px 86px 1fr;font-size:15px;gap:8px}
 .shell:not(.wide) .flowcard li em{font-size:14px}
@@ -241,3 +235,184 @@ html,body{overscroll-behavior-y:none}
 .shell:not(.wide) .btn{font-size:17.5px;padding:17px}
 .shell:not(.wide) .debrief p{font-size:16px;line-height:1.75}
 .shell:not(.wide) .codebox b{font-size:32px}
+
+/* 설문 쪽: 제목 줄 우측에 쪽 번호, 하단은 '답한 문항 수'와 '다음' 버튼을 한 줄로 나눠 배치 */
+.eyebrow-row{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin:14px 0 0}
+.eyebrow-row .eyebrow{margin:0}
+.pageno{font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+.pageno b{color:var(--ink);font-size:15px}
+.eyebrow-row+.h1{margin-top:10px}
+.actions{padding-bottom:calc(22px + env(safe-area-inset-bottom))}
+.actwrap{display:flex;align-items:center;gap:14px}
+.actwrap .count{flex:1;min-width:0;flex-direction:column;align-items:stretch;gap:7px;margin:0}
+.actwrap .count .bar{max-width:none;width:100%;flex:none}
+.actwrap .btn{flex:0 0 42%;width:42%}
+
+/* 제목과 같은 줄에 단계·쪽 번호 (세로 공간 절약) */
+.titlerow{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin:16px 0 0}
+.titlerow .h1{margin:0;flex:1;min-width:0}
+.tmeta{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:none}
+.tmeta .eyebrow{margin:0}
+.tmeta{flex-direction:row;align-items:baseline;gap:6px;padding-bottom:5px;white-space:nowrap}
+.tmeta .eyebrow{background:none;padding:0;font-size:14px;color:var(--muted);font-weight:700}
+.shell:not(.wide) .tmeta .eyebrow{padding:0;font-size:14px}
+.tmeta .pageno{color:var(--ink)}
+
+/* 제목 줄의 녹색 뱃지(원래 디자인 유지) */
+.titlerow{align-items:center}
+.tmeta{padding-bottom:0}
+.tmeta .eyebrow,.shell:not(.wide) .tmeta .eyebrow{background:var(--mint-soft);color:#0b5a44;padding:5px 12px;font-size:13.5px;font-weight:800;font-variant-numeric:tabular-nums}
+
+/* 안내: 위 '진행 순서'에 번호가 있으므로 아래 안내 항목은 번호·연결선 없이 제목+설명만 */
+.guide li{padding-bottom:22px}
+.guide li::before{display:none!important}
+.guide h3{margin-top:0}
+
+
+
+/* 자산 현황: 상단 숫자 영역을 작고 조용하게 줄여 차트가 먼저 읽히도록 한다 (정보는 그대로, 크기만 축소) */
+.status .sub-head{padding:2px 0 8px}
+.status .asset-card{padding:10px 14px 10px;margin:0 0 6px;box-shadow:none;background:#f6f8fa}
+.status .asset-card .lbl{font-size:12.5px;font-weight:600;color:#6b7280}
+.status .asset-card .badge{font-size:10.5px;padding:3px 8px;background:#e9edf2;color:#6b7280}
+.status .asset-card .badge i{width:6px;height:6px}
+.status .asset-card .big{font-size:19px;font-weight:700;margin:4px 0 3px;color:#374151}
+.status .asset-card .sub{font-size:11.5px;color:#6b7280}
+.status .asset-card .sub .coin{display:none}
+.status .asset-card .up{font-weight:600}
+.status .chart-card{margin-top:0}
+
+/* 홈 CTA 어포던스: 잠시 뒤 부드러운 맥동 + 말풍선 (reduced-motion이면 말풍선만) */
+.asset-card{position:relative}
+.cta.nudge{animation:ctaPulse 1.8s ease-in-out infinite}
+.cta.nudge svg:last-child{animation:ctaArrow 1.2s ease-in-out infinite}
+@keyframes ctaPulse{0%,100%{box-shadow:0 0 0 0 rgba(47,217,168,.55)}60%{box-shadow:0 0 0 10px rgba(47,217,168,0)}}
+@keyframes ctaArrow{0%,100%{transform:translateX(0)}50%{transform:translateX(4px)}}
+.cta-tip{position:absolute;right:22px;bottom:calc(100% - 78px);transform:translateY(-100%);background:var(--ink);color:#fff;font-size:12.5px;font-weight:700;padding:7px 11px;border-radius:10px;white-space:nowrap;animation:tipIn .35s ease-out both}
+.cta-tip::after{content:"";position:absolute;right:18px;bottom:-5px;width:10px;height:10px;background:var(--ink);transform:rotate(45deg)}
+@keyframes tipIn{from{opacity:0;transform:translateY(-70%)}to{opacity:1;transform:translateY(-100%)}}
+@media (prefers-reduced-motion:reduce){.cta.nudge,.cta.nudge svg:last-child{animation:none}.cta-tip{animation:none}}
+.cta-tip{right:26px;bottom:2px;transform:translateY(100%);z-index:3;box-shadow:0 6px 16px rgba(15,23,42,.18)}
+.cta-tip::after{bottom:auto;top:-5px}
+@keyframes tipIn{from{opacity:0;transform:translateY(80%)}to{opacity:1;transform:translateY(100%)}}
+
+/* 종료 화면: 참여 코드 복사 + 철회 안내 */
+.codebox .btn{margin-top:12px;padding:9px 16px;font-size:14px}
+.withdraw{margin:16px 0}
+.withdraw h2{margin:0 0 6px;font-size:16px;color:var(--ink)}
+.withdraw p{margin:0 0 12px;font-size:14.5px;line-height:1.7}
+.withdraw .btn{display:inline-flex;align-items:center;text-decoration:none;padding:11px 16px;font-size:14.5px}
+.codebox{display:flex;flex-direction:column;align-items:center}
+.codebox .btn{width:auto;min-width:140px}
+.consent>p:first-child{margin-top:0}
+
+/* 설문 하단: 답한 문항 수를 '다음' 버튼 안에 숫자로만 표시 */
+.btn.withcount{display:flex;align-items:center;justify-content:center;gap:12px;position:relative}
+.btn.withcount .bc{font-size:14px;font-weight:700;background:#ffffff26;border-radius:999px;padding:3px 10px;font-variant-numeric:tabular-nums;color:#ffffffcc}
+.btn.withcount.full .bc{background:var(--mint);color:#08372a}
+
+.chart .plotbg{fill:#fff}
+.status .chart-card{padding-bottom:10px}
+
+/* 대문(웰컴) */
+.shell:has(.welcome){background:linear-gradient(180deg,#e9fdf6 0,#fff 46%)}
+.welcome{display:flex;flex-direction:column;padding-bottom:30px}
+.wl-hero{position:relative;height:190px;margin:6px -4px 0}
+.wl-blob{position:absolute;border-radius:50%;background:var(--mint)}
+.wl-blob.b1{width:150px;height:150px;left:6%;top:18px;opacity:.28}
+.wl-blob.b2{width:84px;height:84px;right:12%;top:2px;opacity:.5}
+.wl-phone{position:absolute;left:50%;top:22px;transform:translateX(-50%) rotate(-5deg);width:100px;height:160px;background:#fff;border:3px solid var(--ink);border-radius:24px;box-shadow:0 14px 30px rgba(15,23,42,.14);display:flex;flex-direction:column;justify-content:center;gap:11px;padding:0 20px}
+.wl-phone b{display:block;height:9px;border-radius:5px;background:#e5e9ef}.wl-phone b.s{width:58%;background:var(--mint)}
+.wl-kicker{margin:14px 0 6px;font-size:13.5px;font-weight:800;color:#0b5a44;letter-spacing:-.01em}
+.wl-title{margin:0;font-size:31px;line-height:1.3;font-weight:800;color:var(--ink);letter-spacing:-.03em}
+.wl-sub{margin:12px 0 0;font-size:16.5px;line-height:1.65;color:#374151}
+.wl-facts{list-style:none;margin:22px 0 0;padding:0;display:flex;flex-direction:column;gap:10px}
+.wl-facts li{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #e8edf2;border-radius:14px;padding:12px 14px;font-size:16px;font-weight:600;color:var(--ink)}
+.wl-facts li>span{flex:none;width:34px;height:34px;border-radius:50%;background:var(--mint-soft);color:#0b5a44;display:grid;place-items:center}
+.wl-btn{margin-top:24px;height:58px;font-size:18px}
+.wl-foot{margin:12px 0 0;text-align:center;font-size:13.5px;color:var(--muted)}
+.shell:has(.welcome) .topbar{background:transparent}
+
+/* 손그림 일러스트 */
+.illus{display:block;width:min(230px,66%);height:auto;margin:10px auto 6px}
+.illus *{vector-effect:non-scaling-stroke}
+.h1.center{text-align:center}
+.wl-hero{height:auto;margin:0}
+.wl-hero .illus{width:min(250px,72%);margin:4px auto 0}
+.welcome .wl-kicker,.welcome .wl-title,.welcome .wl-sub{text-align:center}
+
+/* 일러스트 크기 80% */
+.illus{width:min(184px,53%)}
+.wl-hero .illus{width:min(200px,58%)}
+/* 대문 배경 그라데이션 제거 */
+.shell:has(.welcome){background:#fff}
+
+/* 일러스트: 크림 타일 */
+.illus{border-radius:26px;width:min(240px,70%);margin:6px auto 10px}
+.wl-hero .illus{width:min(260px,74%);margin:4px auto 4px}
+
+/* 문항 완료 표시: 왼쪽 녹색 세로선 대신 문항 우측 상단의 작은 체크 원 (상단 단계 막대와 겹쳐 보이지 않게) */
+.q,.q.done,.q.missing{border-left:0;padding-left:0;margin-left:0}
+.q{position:relative}
+.q.missing{margin:0 -22px;padding:18px 22px}
+.q .q-text{padding-right:34px}
+.q::after{content:"";position:absolute;top:20px;right:0;width:24px;height:24px;border-radius:50%;border:2px solid #d3d9e1;background:#fff center/14px no-repeat;transition:.15s}
+.q.missing::after{right:22px;border-color:var(--warn)}
+.q.done::after{border-color:var(--mint);background-color:var(--mint);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2308372a' stroke-width='3.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E")}
+
+/* 화면 보기 직전(prestim): 밝은 톤 + 큰 일러스트 */
+.shell.wide .screen:has(.pre-go){padding-bottom:0}
+.pre-go{box-sizing:border-box;min-height:calc(100vh - 88px);padding:8px 22px calc(22px + env(safe-area-inset-bottom));display:flex;flex-direction:column}
+.pg-top{display:flex;justify-content:space-between;align-items:center}
+.pg-tag{font-size:13.5px;font-weight:800;color:#0b5a44;background:var(--mint-soft);border-radius:999px;padding:5px 12px}
+.pg-dots{display:flex;gap:5px}.pg-dots i{width:7px;height:7px;border-radius:50%;background:#d3d9e1}.pg-dots i:last-child{background:var(--mint)}
+.pre-go .illus{width:min(210px,62%);margin:4px auto 0}
+.pg-title{margin:6px 0 0;text-align:center;font-size:25px;line-height:1.35;font-weight:800;letter-spacing:-.02em;color:var(--ink)}
+.pg-sub{margin:6px 0 0;text-align:center;color:var(--muted);font-size:14.5px}
+.pg-list{list-style:none;margin:14px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
+.pg-list li{display:flex;gap:12px;align-items:center;background:#fff;border:1px solid #e8edf2;border-radius:14px;padding:10px 14px}
+.pg-list li>span{flex:none;width:26px;height:26px;border-radius:50%;background:var(--mint);color:#08372a;font-weight:800;font-size:13.5px;display:grid;place-items:center}
+.pg-list b{display:block;font-size:16px;color:var(--ink)}.pg-list p{margin:1px 0 0;color:#4b5563;font-size:14px;line-height:1.45}
+.pg-note{margin:12px 0 0;text-align:center;color:#a15c07;font-size:14px;font-weight:600}
+.pre-go .pg-btn{margin-top:14px;height:56px;position:sticky;bottom:14px}
+
+/* 일러스트: 선 그림 스타일(배경·면 없음) */
+.illus{border-radius:0;overflow:visible}
+
+/* 일러스트: 도형 아이콘 스타일 */
+.illus{width:min(180px,52%)}
+.illus *{vector-effect:none}
+.wl-hero .illus{width:min(190px,56%)}
+.pre-go .illus{width:min(170px,50%)}
+
+/* 상단: 뒤로 가기 버튼과 같은 줄, 오른쪽에 현재 단계 이름 + 짧은 막대 */
+.phases{display:flex;align-items:center;gap:10px;margin-left:auto}
+.phases .pcur{font-size:13.5px;font-weight:800;color:var(--ink)}
+.phases ol{list-style:none;margin:0;padding:0;display:flex;gap:4px}
+.phases li i{display:block;width:20px;height:4px;border-radius:4px;background:#e1e5ea}
+.phases li.done i{background:#9aa5b4}.phases li.on i{background:var(--ink)}
+.phases .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.shell:has(.welcome) .phases{display:none}
+/* 실험 화면 진입 로딩 */
+.enter-load{min-height:calc(100vh - 52px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:#fff;color:#4b5563;font-size:15px}
+.enter-load .spin{width:34px;height:34px;border-radius:50%;border:3.5px solid #e5e9ef;border-top-color:var(--mint);animation:entspin .7s linear infinite}
+.enter-load p{margin:0}
+@keyframes entspin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.enter-load .spin{animation:none;border-top-color:var(--mint)}}
+
+/* 설문 쪽 안내: 박스 없이 제목 아래 보조 정보로, 아래 문항과는 가는 선으로 구분 */
+.shell:not(.wide) .titlerow+.lead{font-size:14.5px;line-height:1.6;color:#6b7280;margin:8px 0 0}
+.shell:not(.wide) .guidebox{background:none;border:0;border-radius:0;padding:0 0 16px;margin:8px 0 2px;border-bottom:1px solid #dfe4ea}
+.shell:not(.wide) .guidebox p{font-size:14px;line-height:1.65;color:#6b7280}
+.shell:not(.wide) .guidebox p+p{margin-top:4px}
+.shell:not(.wide) .guidebox .legend{font-size:13.5px;color:#6b7280}
+.shell:not(.wide) .guidebox .legend b{color:var(--ink)}
+.titlerow+.lead+.guidebox,.titlerow+.guidebox{margin-top:10px}
+
+/* 안내 문구: 불릿 + 좁은 행간 */
+.shell:not(.wide) .titlerow+.lead,.shell:not(.wide) .guidebox p{position:relative;padding-left:13px;line-height:1.45}
+.shell:not(.wide) .titlerow+.lead::before,.shell:not(.wide) .guidebox p::before{content:"•";position:absolute;left:1px;top:0;color:#9aa5b4}
+.shell:not(.wide) .titlerow+.lead{margin-top:6px}
+.shell:not(.wide) .guidebox{margin-top:2px;padding-bottom:14px}
+.shell:not(.wide) .guidebox p+p{margin-top:2px}
+.shell:not(.wide) .titlerow+.lead+.guidebox{margin-top:2px}

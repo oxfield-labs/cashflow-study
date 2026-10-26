@@ -9,6 +9,9 @@ export const CONFIG = {
   APP_NAME: 'Cashflow',
   RESEARCHER_CONTACT: '[연구자 이름 · 이메일]', // 동의서·디브리핑에 표시
   IRB_NUMBER: '[IRB 승인번호]', // 심의 후 입력
+  RESEARCHER_EMAIL: '[연구자 이메일]', // 철회 요청 메일 주소 (종료 화면의 '이메일로 철회 요청' 버튼)
+  WITHDRAW_DEADLINE: '[철회 가능 기한 예: 2026년 O월 O일]', // 이 날짜 이후에는 분석이 시작되어 철회가 어렵다
+  TARGET_DESC: '만 19~39세, 최근 금융 앱을 이용해 보신 분', // 참여 조건 탈락 화면에 쓰는 대상 안내 (일반적 범위만. 어떤 문항 때문인지는 알리지 않는다)
 
   SHOW_COMPLETION_CODE: true, // 패널·크라우드 모집에서 '참여 확인'용 코드가 필요 없으면 false
 
