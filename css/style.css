@@ -424,3 +424,16 @@ input.num::placeholder,input[type=text]::placeholder,textarea::placeholder{color
 /* 이메일: 아이콘 + 링크 */
 .mail-link{display:inline-flex;align-items:center;gap:4px;color:#2f5bf5;font-weight:600;text-decoration:none;border-bottom:1px solid rgba(47,91,245,.35);word-break:break-all}
 .mail-link svg{flex:none}
+
+/* 버튼만 있는 하단 영역(이어하기 등): 가로 전체 */
+.actwrap.solo{display:block}
+.actwrap.solo .btn{display:flex;justify-content:center;align-items:center;text-align:center;width:100%;flex:none;max-width:none}
+
+/* 동의 카드: 연구자 정보 (본문과 라인으로 구분, 한 단계 작게) */
+.consent .rinfo{margin:14px 0 0;padding:12px 0 0;border-top:1px solid var(--line);display:grid;grid-template-columns:max-content minmax(0,1fr);gap:5px 10px;align-items:start}
+.consent .rinfo dt,.consent .rinfo dd{margin:0;font-size:13.5px;line-height:1.55;color:var(--muted)}
+.consent .rinfo dd{color:var(--text)}
+.consent .rinfo .mail-link{font-size:13.5px;font-weight:600}
+.consent .rinfo .mail-link svg{width:14px;height:14px}
+.consent>ul{margin-bottom:0}
+.shell:not(.wide) .consent .rinfo dt,.shell:not(.wide) .consent .rinfo dd{font-size:13.5px;line-height:1.55}

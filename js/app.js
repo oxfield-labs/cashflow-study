@@ -344,7 +344,11 @@ function renderConsent() {
          <li>언제든 중단할 수 있고, 중단해도 불이익은 없습니다.</li>
          ${lab ? '<li>시선 추적 장비로 화면을 보는 동안의 시선이 기록됩니다.</li>' : ''}
        </ul>
-       <p class="small">연구자 연락처: ${contactHTML()}<br>생명윤리위원회 심의: ${esc(CONFIG.IRB_NUMBER)}</p>
+       <dl class="rinfo">
+         <dt>연구자 :</dt><dd>${esc(CONFIG.RESEARCHER_CONTACT)}</dd>
+         <dt>연락처 :</dt><dd>${mailHTML()}</dd>
+         <dt>생명윤리위원회 심의 :</dt><dd>${esc(CONFIG.IRB_NUMBER)}</dd>
+       </dl>
      </div>
      ${lab && PID ? `<p class="small muted">참가자 ID: <b>${esc(PID)}</b></p>` : ''}
      <label class="agree"><input type="checkbox" id="agree"><span class="box">${ICON.check}</span><span>${lab ? '현장에서 서면 동의를 받았음을 확인합니다 (연구자 확인).' : '위 내용을 읽었으며 연구 참여에 동의합니다.'}</span></label>
@@ -439,9 +443,12 @@ function renderScreenedOut() {
   );
   document.getElementById('copylink').addEventListener('click', () => copyText(location.origin + location.pathname, '링크를 복사했어요.'));
 }
-function contactHTML() {
+function mailHTML() {
   const m = esc(CONFIG.RESEARCHER_EMAIL);
-  return `${esc(CONFIG.RESEARCHER_CONTACT)} <a class="mail-link" href="mailto:${m}">${ICON.mail}<span>${m}</span></a>`;
+  return `<a class="mail-link" href="mailto:${m}">${ICON.mail}<span>${m}</span></a>`;
+}
+function contactHTML() {
+  return `${esc(CONFIG.RESEARCHER_CONTACT)} ${mailHTML()}`;
 }
 
 async function copyText(text, msg) {
@@ -1067,7 +1074,7 @@ function renderResume(r) {
     `<h1 class="h1">이어서 진행할까요?</h1>
      <p class="lead">지난번에 <b>‘${esc(STEP_LABEL(r.stepId))}’</b> 단계까지 진행하셨어요. 입력하신 내용은 그대로 남아 있습니다.</p>
      ${r.exposed ? '<p class="note">화면을 이미 보셨기 때문에 처음부터 다시 참여할 수는 없어요. 이어서 진행해 주세요.</p>' : ''}
-     <div class="actions"><div class="actwrap"><button class="btn primary" id="resume">이어서 하기</button>${r.exposed ? '' : '<button class="btn ghost" id="restart" style="margin-top:8px;width:100%">처음부터 다시 하기</button>'}</div></div>`,
+     <div class="actions"><div class="actwrap solo"><button class="btn primary" id="resume">이어서 하기</button>${r.exposed ? '' : '<button class="btn ghost" id="restart" style="margin-top:8px;width:100%">처음부터 다시 하기</button>'}</div></div>`,
     { progress: false }
   );
   document.getElementById('resume').addEventListener('click', () => {
