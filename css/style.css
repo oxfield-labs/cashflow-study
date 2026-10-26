@@ -195,3 +195,49 @@ body{margin:0;background:#e9edf2;font-family:var(--font);color:var(--text);font-
 
 /* 자극물 화면의 '다음' 버튼: 최소 노출 시간 동안 안쪽이 서서히 차오른다 (숫자 없음) */
 .btn.primary.timed:disabled{background:linear-gradient(to right,#b6c0cd var(--p,0%),#e8ebf0 var(--p,0%));color:#4b5563}
+
+/* 자극물 화면 '다음' 버튼 등장: 시간이 되면 아래에서 부드럽게 올라온다 */
+.nextbar{transition:transform .6s cubic-bezier(.2,.8,.2,1),opacity .45s ease}
+.nextbar.hold{transform:translateY(115%);opacity:0;pointer-events:none}
+.nextbar.instant{transition:none}
+
+/* 메신저 인앱 브라우저 안내 */
+.inapp{margin:0 0 16px;padding:14px 16px;border-radius:14px;background:#fff7ea;border:1px solid #f1d9a8}
+.inapp b{display:block;color:#8a4a07;margin-bottom:4px}.inapp p{margin:0 0 8px;color:#5b4a2a}.inapp .btn{width:100%}
+
+/* 당겨서 새로고침·끝에서 튕김으로 창이 닫히거나 새로고침되는 것을 줄인다 */
+html,body{overscroll-behavior-y:none}
+
+/* 모바일 가독성: 안내·설문 화면(자극물 화면은 건드리지 않는다)의 글자와 터치 영역을 키운다 */
+.shell:not(.wide){font-size:17px;line-height:1.6}
+.shell:not(.wide) .h1{font-size:26px;line-height:1.38}
+.shell:not(.wide) .lead{font-size:16.5px;color:#4b5563}
+.shell:not(.wide) .note{font-size:14.5px;line-height:1.7;color:#374151}
+.shell:not(.wide) .small,.shell:not(.wide) .hint{font-size:14px}
+.shell:not(.wide) .consent li,.shell:not(.wide) .consent p{font-size:16px;line-height:1.7}
+.shell:not(.wide) .agree span:last-child{font-size:16px;line-height:1.55}
+.shell:not(.wide) .guide h3{font-size:18.5px}
+.shell:not(.wide) .guide p{font-size:16px;line-height:1.7}
+.shell:not(.wide) .num-dot{width:31px;height:31px;font-size:14px}
+.shell:not(.wide) .eyebrow{font-size:13.5px;padding:5px 12px}
+.shell:not(.wide) .phases li{font-size:13px}
+.shell:not(.wide) .flowcard h2{font-size:15.5px}
+.shell:not(.wide) .flowcard li{grid-template-columns:28px 86px 1fr;font-size:15px;gap:8px}
+.shell:not(.wide) .flowcard li em{font-size:14px}
+.shell:not(.wide) .steps3 b{font-size:18px}.shell:not(.wide) .steps3 p{font-size:16px;line-height:1.65}
+.shell:not(.wide) .guidebox{padding:15px 17px}
+.shell:not(.wide) .guidebox p{font-size:15.5px;line-height:1.7}
+.shell:not(.wide) .guidebox .legend{font-size:14.5px}
+.shell:not(.wide) .q-text{font-size:17.5px;line-height:1.65;margin-bottom:16px}
+.shell:not(.wide) .lk span{height:52px;font-size:17px;border-radius:13px}
+.shell:not(.wide) .lk-labels{font-size:14px;line-height:1.4;margin-top:10px}
+.shell:not(.wide) .ch span{font-size:16.5px;padding:16px 16px}
+.shell:not(.wide) .num{font-size:17px;padding:16px}
+.shell:not(.wide) .unit{font-size:16px}
+.shell:not(.wide) .fld>span,.shell:not(.wide) .label2{font-size:15px}
+.shell:not(.wide) .intr h3{font-size:18px}.shell:not(.wide) .intr p{font-size:14px}
+.shell:not(.wide) .chip{font-size:15.5px;padding:12px 0}
+.shell:not(.wide) .count{font-size:14px}
+.shell:not(.wide) .btn{font-size:17.5px;padding:17px}
+.shell:not(.wide) .debrief p{font-size:16px;line-height:1.75}
+.shell:not(.wide) .codebox b{font-size:32px}

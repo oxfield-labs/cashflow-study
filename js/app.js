@@ -8,6 +8,7 @@ const params = new URLSearchParams(location.search);
 const MODE = params.get('mode') === 'lab' ? 'lab' : 'online'; // lab = Phase 2(아이트래킹, 연구자 동석)
 const PID = (params.get('pid') || '').trim() || null;
 const STAGE = ['pre', 'exp'].includes(params.get('stage')) && MODE === 'lab' ? params.get('stage') : 'all';
+const APP_VERSION = 'pilot-0.3';
 const DEBUG = params.get('debug') === '1';
 const SHOW_AOI = params.get('aoi') === '1';
 const FORCE_GROUP = (MODE === 'lab' || DEBUG) && ['A', 'B', 'C'].includes(params.get('g')) ? params.get('g') : null;
@@ -78,7 +79,7 @@ function deviceInfo() {
     tz_offset_min: new Date().getTimezoneOffset(),
     mode: MODE,
     stage: STAGE,
-    app_version: 'pilot-0.2',
+    app_version: APP_VERSION,
   };
 }
 function log(type, data = {}) {
@@ -228,6 +229,7 @@ function enterStep() {
   S.timing[currentStepId()].visits++;
   S._enter = performance.now();
   log('step_enter');
+  persist();
   RENDER[currentStepId()]?.();
 }
 function leaveStep() {
@@ -271,6 +273,7 @@ function renderConsent() {
   frame(
     `<h1 class="h1">${esc(CONFIG.STUDY_TITLE)}</h1>
      <p class="lead">${lab ? '연구자와 함께 진행하는 현장 참여입니다.' : '연구 참여 안내문'}</p>
+     ${inappNotice()}
      <div class="card flat consent">
        <p>본 조사는 모바일 금융 앱 화면을 보고 자산 상태를 어떻게 판단하는지 알아보는 학술 연구입니다.</p>
        <ul>
@@ -289,6 +292,7 @@ function renderConsent() {
   );
   const agree = document.getElementById('agree');
   const btn = document.getElementById('next');
+  document.getElementById('openext')?.addEventListener('click', () => (location.href = 'kakaotalk://web/openExternal?url=' + encodeURIComponent(location.href)));
   agree.addEventListener('change', () => (btn.disabled = !agree.checked));
   btn.addEventListener('click', async () => {
     btn.disabled = true;
@@ -327,6 +331,7 @@ function renderScreening() {
     const passed = Q.SCREENING.every((it) => it.pass(out[it.id]));
     await store.savePart(S.id, 'screen', { ...S.screen, consent: true, passed }, passed ? 'screened' : 'screened_out');
     if (!passed) {
+      clearSaved();
       leaveStep();
       frame(`<h1 class="h1">참여해 주셔서 감사합니다</h1><p class="lead">이번 연구는 특정 조건의 분들을 대상으로 하고 있어, 아쉽지만 이어서 진행하기 어렵습니다. 관심 가져 주셔서 고맙습니다.</p>`, { progress: false });
       await flushEvents();
@@ -435,6 +440,11 @@ function renderSurveyPage(page, bucket, { saveAs, doneStatus, back }) {
         box.classList.remove('missing');
       }
     }
+    for (const it of items) {
+      const v = readItem(it, f);
+      if (v !== null) bucket[it.id] = v;
+    }
+    persist();
     document.getElementById('cnt').textContent = n;
     document.getElementById('cbar').style.width = Math.round((n / items.length) * 100) + '%';
     document.getElementById('count').classList.toggle('full', n === items.length);
@@ -617,6 +627,7 @@ function showStatus() {
   const st = S.stim;
   const ss = S.stimState;
   ss.view = 'status';
+  S.exposed = true;
   ss.statusEntries++;
   ss.enteredAt = performance.now();
   ss.visibleSince = document.visibilityState === 'visible' ? performance.now() : null;
@@ -642,7 +653,7 @@ function showStatus() {
           </div>`
         )
         .join('')}</div>
-      <div class="nextbar"><button class="btn primary" id="snext" disabled></button></div>
+      <div class="nextbar hold" id="nextbar" aria-hidden="true"><button class="btn primary" id="snext" disabled>다음</button></div>
     </div>`,
     { progress: false, wide: true }
   );
@@ -678,17 +689,32 @@ function currentChartMs() {
   return ss.chartMs + (ss.visibleSince ? performance.now() - ss.visibleSince : 0);
 }
 function startChartClock(need) {
-  // 남은 시간을 숫자로 보여 주지 않는다: 버튼 문구는 처음부터 '다음'이고, 비활성인 동안 버튼 안쪽이 서서히 차오른다.
-  // (시계를 보게 만들거나 '그 시간만큼 보라'는 신호가 되는 것을 피하고, 시선추적에서 숫자가 시선을 끄는 것도 막는다.)
+  // 최소 노출 시간이 지나기 전에는 남은 시간을 숫자로 보여 주지 않는다 (시계를 보게 하거나 '그 시간만큼 보라'는 신호가 되는 것을 피함).
+  //  - CONFIG.NEXT_STYLE = 'reveal'(기본): 시간이 되면 하단에서 '다음' 버튼이 부드럽게 올라온다. 앱에서 콘텐츠가 준비되면 버튼이 나타나는 것과 같은 느낌.
+  //  - CONFIG.NEXT_STYLE = 'fill': 버튼이 처음부터 보이고 비활성인 동안 안쪽이 서서히 차오른다.
   const btn = document.getElementById('snext');
-  btn.textContent = '다음';
-  btn.classList.add('timed');
+  const bar = document.getElementById('nextbar');
+  const style = CONFIG.NEXT_STYLE === 'fill' ? 'fill' : 'reveal';
+  let first = true;
   const upd = () => {
     const done = need <= 0 ? 1 : Math.min(1, currentChartMs() / need);
-    btn.style.setProperty('--p', Math.round(done * 100) + '%');
-    btn.disabled = done < 1;
-    btn.classList.toggle('timed', done < 1);
+    const ready = done >= 1;
+    btn.disabled = !ready;
+    if (style === 'fill') {
+      bar.classList.remove('hold');
+      bar.removeAttribute('aria-hidden');
+      btn.style.setProperty('--p', Math.round(done * 100) + '%');
+      btn.classList.toggle('timed', !ready);
+    } else {
+      if (ready && first) bar.classList.add('instant'); // 이미 시간을 채우고 다시 들어온 경우엔 애니메이션 없이 바로 보여 준다
+      bar.classList.toggle('hold', !ready);
+      if (ready) bar.removeAttribute('aria-hidden');
+      else bar.setAttribute('aria-hidden', 'true');
+    }
+    first = false;
+    if (S.stimState.view === 'status' && ++upd.n % 20 === 0) persist();
   };
+  upd.n = 0;
   upd();
   clearInterval(tickTimer);
   tickTimer = setInterval(upd, 100);
@@ -831,7 +857,8 @@ async function renderEnd() {
   }
   window.__cfxDone = false;
   await store.savePart(S.id, 'timing', S.timing, null);
-  await store.savePart(S.id, 'meta', { code: S.code }, 'completed');
+  await store.savePart(S.id, 'meta', { code: S.code, resumes: S.resumes || 0, app_version: APP_VERSION }, 'completed');
+  clearSaved();
   await flushEvents();
   await store.flush();
   try {
@@ -845,6 +872,84 @@ async function renderEndPre() {
   await store.savePart(S.id, 'timing', S.timing, 'pre_done');
   await flushEvents();
   await store.flush();
+}
+
+
+// ---------- 이어하기 (메신저 인앱 브라우저가 닫혀도 같은 링크로 다시 열면 이어서 진행) ----------
+// 진행 상태를 이 기기의 브라우저에 저장해 두고, 다시 열면 같은 세션으로 이어 간다. 응답 자체는 쪽마다 이미 서버에 저장되어 있다.
+// 규칙: ① 온라인 참여자만(현장 참가자는 연구자가 관리) ② 자극물 화면을 본 뒤에는 '처음부터 다시'를 허용하지 않는다(두 가지 화면에 노출되는 것을 막기 위해)
+//       ③ 앱 버전이 바뀌었거나 7일이 지났으면 이어하기를 쓰지 않는다.
+const SAVE_KEY = 'cfx_resume_v1';
+const RESUMABLE = MODE === 'online' && !DEBUG && !PREVIEW;
+function clearSaved() {
+  try {
+    localStorage.removeItem(SAVE_KEY);
+  } catch {}
+}
+function persist() {
+  if (!RESUMABLE || !S.id || STEPS.indexOf(currentStepId()) < STEPS.indexOf('guide')) return;
+  const sid = currentStepId();
+  if (sid === 'end') return;
+  const ss = S.stimState;
+  try {
+    localStorage.setItem(
+      SAVE_KEY,
+      JSON.stringify({
+        v: 1, ver: APP_VERSION, t: Date.now(), id: S.id, group: S.group, stepId: sid,
+        screen: S.screen, pre: S.pre, asset: S.asset, post: S.post, orders: S.orders, timing: S.timing, stim: S.stim, code: S.code,
+        resumes: S.resumes || 0, exposed: !!S.exposed,
+        stimState: { homeMs: ss.homeMs, statusEntries: ss.statusEntries, chartMs: sid === 'stimulus' ? currentChartMs() : ss.chartMs },
+      })
+    );
+  } catch {}
+}
+function loadSaved() {
+  if (!RESUMABLE) return null;
+  try {
+    const r = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
+    if (!r || r.v !== 1 || r.ver !== APP_VERSION || Date.now() - r.t > 7 * 86400000) return null;
+    if (localStorage.getItem('cfx_participated')) return null;
+    const idx = STEPS.indexOf(r.stepId);
+    return idx >= STEPS.indexOf('guide') && idx >= 0 ? { ...r, idx } : null;
+  } catch {
+    return null;
+  }
+}
+const STEP_LABEL = (id) => (id === 'guide' ? '안내' : PRE_IDS.has(id) || id === 'asset' ? '사전 질문' : POST_IDS.has(id) || id === 'poststart' ? '설문' : '화면 보기');
+function renderResume(r) {
+  frame(
+    `<h1 class="h1">이어서 진행할까요?</h1>
+     <p class="lead">지난번에 <b>‘${esc(STEP_LABEL(r.stepId))}’</b> 단계까지 진행하셨어요. 입력하신 내용은 그대로 남아 있습니다.</p>
+     ${r.exposed ? '<p class="note">화면을 이미 보셨기 때문에 처음부터 다시 참여할 수는 없어요. 이어서 진행해 주세요.</p>' : ''}
+     <div class="actions"><div class="actwrap"><button class="btn primary" id="resume">이어서 하기</button>${r.exposed ? '' : '<button class="btn ghost" id="restart" style="margin-top:8px;width:100%">처음부터 다시 하기</button>'}</div></div>`,
+    { progress: false }
+  );
+  document.getElementById('resume').addEventListener('click', () => {
+    Object.assign(S, { id: r.id, group: r.group, screen: r.screen || {}, pre: r.pre || {}, asset: r.asset || S.asset, post: r.post || {}, orders: r.orders || {}, timing: r.timing || {}, stim: r.stim, code: r.code, exposed: !!r.exposed, resumes: (r.resumes || 0) + 1 });
+    Object.assign(S.stimState, { homeMs: r.stimState?.homeMs || 0, chartMs: r.stimState?.chartMs || 0, statusEntries: r.stimState?.statusEntries || 0 });
+    S.stepIdx = r.idx;
+    history.pushState({ s: S.stepIdx }, '');
+    log('resume', { from: r.stepId, n: S.resumes });
+    enterStep();
+  });
+  document.getElementById('restart')?.addEventListener('click', () => {
+    clearSaved();
+    S.stepIdx = 0;
+    enterStep();
+  });
+}
+// 창이 닫히거나 숨겨질 때 한 번 더 저장
+addEventListener('pagehide', persist);
+document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && persist());
+
+// 메신저(인앱) 브라우저 안내
+const INAPP = /KAKAOTALK|NAVER\(inapp|Line\/|Instagram|FBAN|FBAV|DaumApps/i.test(navigator.userAgent);
+const IS_KAKAO = /KAKAOTALK/i.test(navigator.userAgent);
+function inappNotice() {
+  if (!INAPP || MODE !== 'online') return '';
+  return `<div class="inapp"><b>메신저 안에서 열려 있어요</b><p>화면을 아래로 내리면 창이 닫힐 수 있어요. 더 안정적으로 진행하려면 기본 브라우저(Safari·Chrome)로 열어 주세요. 닫히더라도 같은 링크를 다시 열면 이어서 할 수 있습니다.</p>${
+    IS_KAKAO ? '<button class="btn ghost" id="openext" type="button">기본 브라우저로 열기</button>' : '<p class="small">오른쪽 위·아래의 메뉴(⋯)에서 ‘다른 브라우저로 열기’를 눌러 주세요.</p>'
+  }</div>`;
 }
 
 // ---------- 라우팅 ----------
@@ -886,4 +991,6 @@ if (PREVIEW) {
   S.id = 'preview';
   S.group = PREVIEW;
 }
-enterStep();
+const SAVED = loadSaved();
+if (SAVED) renderResume(SAVED);
+else enterStep();

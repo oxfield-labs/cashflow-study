@@ -12,6 +12,7 @@ export const CONFIG = {
 
   SHOW_COMPLETION_CODE: true, // 패널·크라우드 모집에서 '참여 확인'용 코드가 필요 없으면 false
 
+  NEXT_STYLE: 'reveal', // 자극물 화면의 '다음' 버튼: 'reveal'(시간이 되면 부드럽게 등장) | 'fill'(처음부터 보이고 안쪽이 차오름)
   MIN_EXPOSURE_SEC: 20, // 자극물 최소 노출 시간(초). 파일럿에서 조정
   TARGET_MIN: 5, // 안내문에 쓰는 예상 소요 시간(분)
   TARGET_MAX: 10,
