@@ -324,11 +324,19 @@ function renderConsent() {
     }
   })();
   if (done && !DEBUG && !DESIGN && MODE === 'online') {
-    frame(`<h1 class="h1">이미 참여하셨어요</h1><p class="lead">이 브라우저에서 이미 연구에 참여하신 기록이 있습니다. 한 분당 한 번만 참여할 수 있어 중복 참여는 어렵습니다. 감사합니다.</p>`, { progress: false });
+    // TEMP(중간발표용): '임시 다시 참여하기'는 실제 파일럿 전에 이 버튼과 아래 핸들러를 함께 제거한다.
+    frame(`<h1 class="h1">이미 참여하셨어요</h1><p class="lead">이 브라우저에서 이미 연구에 참여하신 기록이 있습니다. 한 분당 한 번만 참여할 수 있어 중복 참여는 어렵습니다. 감사합니다.</p>
+      <div class="actions"><div class="actwrap solo"><button class="btn ghost" id="temp-retry" type="button">임시 다시 참여하기</button></div></div>`, { progress: false });
+    document.getElementById('temp-retry').addEventListener('click', () => {
+      try {
+        ['cfx_participated', 'cfx_screenedout', 'cfx_resume_v1'].forEach((k) => localStorage.removeItem(k));
+      } catch {}
+      location.reload();
+    });
     return;
   }
   try {
-    if (!DEBUG && !DESIGN && MODE === 'online' && localStorage.getItem('cfx_screenedout')) return renderScreenedOut();
+    if (!DEBUG && !DESIGN && MODE === 'online' && localStorage.getItem('cfx_screenedout')) return renderScreenedOut('restart');
   } catch {}
   const lab = MODE === 'lab';
   if (!S._welcomed) return renderWelcome();
@@ -421,7 +429,7 @@ function renderScreening() {
       try {
         if (!DESIGN) localStorage.setItem('cfx_screenedout', '1'); // 같은 브라우저에서 답을 바꿔 다시 들어오는 것을 막는다
       } catch {}
-      renderScreenedOut();
+      renderScreenedOut('continue');
       await flushEvents();
       return;
     }
@@ -430,7 +438,7 @@ function renderScreening() {
 }
 
 // 참여 조건에 맞지 않을 때: 개인 평가처럼 들리지 않게 쓰고, 어떤 문항 때문인지는 알리지 않는다. 링크 복사로 주변의 해당자에게 공유를 청한다.
-function renderScreenedOut() {
+function renderScreenedOut(tempMode) {
   frame(
     `${ILLUS.out}<h1 class="h1 center">관심 가져 주셔서<br>감사합니다</h1>
      <div class="card flat consent">
@@ -438,10 +446,19 @@ function renderScreenedOut() {
        <p><b>대상</b><br>${esc(CONFIG.TARGET_DESC)}</p>
        <p>주변에 해당되는 분이 계시다면 링크를 공유해 주세요.</p>
      </div>
-     <div class="actions"><button class="btn primary" id="copylink">링크 복사</button></div>`,
+     <div class="actions"><div class="actwrap solo"><button class="btn primary" id="copylink">링크 복사</button>
+       <button class="btn ghost" id="temp-skip" type="button" style="margin-top:8px">무시하고 계속 진행하기 (임시)</button></div></div>`,
     { progress: false }
   );
   document.getElementById('copylink').addEventListener('click', () => copyText(location.origin + location.pathname, '링크를 복사했어요.'));
+  // TEMP(중간발표용): '무시하고 계속 진행하기'는 실제 파일럿 전에 이 버튼과 아래 핸들러를 함께 제거한다.
+  document.getElementById('temp-skip').addEventListener('click', () => {
+    try {
+      localStorage.removeItem('cfx_screenedout');
+    } catch {}
+    if (tempMode === 'continue') next();
+    else renderConsent();
+  });
 }
 function mailHTML() {
   const m = esc(CONFIG.RESEARCHER_EMAIL);
