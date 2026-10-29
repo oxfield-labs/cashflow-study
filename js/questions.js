@@ -94,10 +94,11 @@ export const PRE_PAGES = [
 
 // A-2. 투자 금액 입력
 export const ASSET_MIN = 100_000; // 10만 원 (용돈 수준의 투자자도 참여할 수 있게). 자극물의 축은 입력 금액의 배수라 어떤 금액에서도 같은 모양이 된다.
-export const ASSET_MAX = 100_000_000;
+export const ASSET_MAX = 10_000_000_000; // 100억 원. 상한은 입력 실수(0을 여러 개 더 붙임 등)를 막는 안전장치일 뿐이다. 자극물 축이 입력 금액의 배수라 금액이 커도 같은 모양이 된다.
 export const INTERESTS = [
   { id: 'overseas', title: '해외주식 / ETF', desc: '미국 빅테크, 글로벌 배당주 및 지수 ETF' },
   { id: 'domestic', title: '국내주식 / 펀드', desc: '코스피, 코스닥 우량주 및 국내 액티브 펀드' },
+  { id: 'savings', title: '예금 / 적금', desc: '정기예금, 자유적금, 파킹통장 및 CMA' },
   { id: 'alt', title: '가상자산 및 대체투자', desc: '비트코인, 이더리움, 실물 금 및 원자재' },
 ];
 export const QUICK_ADD = [
@@ -192,3 +193,13 @@ export const POST_PAGES = [
 ];
 
 export const POST_LIKERT_IDS = POST_PAGES.flatMap((p) => p.items.filter((i) => i.type === 'likert' && !i.id.startsWith('M') && i.id !== 'AC1').map((i) => i.id));
+
+// 금액을 읽기 쉬운 한글 단위로: 100000 → '10만 원', 10000000000 → '100억 원', 1250000 → '125만 원'
+export function koWon(v) {
+  const eok = Math.floor(v / 1e8);
+  const man = Math.round((v % 1e8) / 1e4);
+  const parts = [];
+  if (eok) parts.push(eok.toLocaleString('ko-KR') + '억');
+  if (man) parts.push(man.toLocaleString('ko-KR') + '만');
+  return (parts.join(' ') || '0') + ' 원';
+}

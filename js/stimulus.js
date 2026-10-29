@@ -125,63 +125,103 @@ export function buildStimulus(group, N, now = new Date(), endMonth = null) {
   };
 }
 
-// SVG 차트(높이 260→340: 기울기가 더 또렷이 보이도록. 세 집단 모두 같은 크기). 모든 집단이 같은 크기·색·눈금 개수·격자를 쓰고 Y축 범위만 다르다.
-export function chartSVG(stim, width = 380, height = 352) {
-  const padL = 56,
-    padR = 14,
-    padT = 16,
-    padB = 42;
+// 단조 3차 보간(Fritsch–Carlson): 꺾임 없이 부드럽게 잇되, 데이터 점 사이에서 값이 튀어 오르거나 내려가지 않는다. (세 집단 모두 같은 방식)
+function smoothPath(pts) {
+  const n = pts.length;
+  const dx = [],
+    s = [];
+  for (let i = 0; i < n - 1; i++) {
+    dx.push(pts[i + 1][0] - pts[i][0]);
+    s.push((pts[i + 1][1] - pts[i][1]) / dx[i]);
+  }
+  const t = new Array(n);
+  t[0] = s[0];
+  t[n - 1] = s[n - 2];
+  for (let i = 1; i < n - 1; i++) t[i] = s[i - 1] * s[i] <= 0 ? 0 : (s[i - 1] + s[i]) / 2;
+  for (let i = 0; i < n - 1; i++) {
+    if (s[i] === 0) {
+      t[i] = 0;
+      t[i + 1] = 0;
+      continue;
+    }
+    const a = t[i] / s[i],
+      b = t[i + 1] / s[i],
+      h = Math.hypot(a, b);
+    if (h > 3) {
+      t[i] = (3 * a * s[i]) / h;
+      t[i + 1] = (3 * b * s[i]) / h;
+    }
+  }
+  let d = `M${pts[0][0].toFixed(2)} ${pts[0][1].toFixed(2)}`;
+  for (let i = 0; i < n - 1; i++) {
+    const x0 = pts[i][0],
+      y0 = pts[i][1],
+      x1 = pts[i + 1][0],
+      y1 = pts[i + 1][1];
+    d += ` C${(x0 + dx[i] / 3).toFixed(2)} ${(y0 + (t[i] * dx[i]) / 3).toFixed(2)} ${(x1 - dx[i] / 3).toFixed(2)} ${(y1 - (t[i + 1] * dx[i]) / 3).toFixed(2)} ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+  }
+  return d;
+}
+
+// SVG 차트. 세 집단 모두 같은 크기·색·굵기·눈금 개수·격자·애니메이션을 쓰고 Y축 범위만 다르다.
+// 가로세로비를 고정(380×430)해 기기 폭이 달라도 같은 모양으로 보이게 한다. 차트가 화면의 주인공이 되도록 높이를 넉넉히 둔다.
+export function chartSVG(stim, width = 380, height = 430, { extras = false } = {}) {
+  const padL = 54,
+    padR = 18,
+    padT = 24,
+    padB = 44;
   const plotW = width - padL - padR;
   const plotH = height - padT - padB;
   const y = (v) => padT + ((stim.hi - v) / (stim.hi - stim.lo)) * plotH;
   const x = (i) => padL + (i / (stim.series.length - 1)) * plotW;
 
   const pts = stim.series.map((p) => [x(p.i), y(p.value)]);
-  const path = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(2) + ' ' + p[1].toFixed(2)).join(' ');
+  const path = smoothPath(pts);
 
   const grid = stim.ticks
-    .map(
-      (t) =>
-        `<line class="grid" x1="${padL}" x2="${padL + plotW}" y1="${y(t).toFixed(2)}" y2="${y(t).toFixed(2)}"/>`
-    )
+    .map((t) => `<line class="grid" x1="${padL}" x2="${padL + plotW}" y1="${y(t).toFixed(2)}" y2="${y(t).toFixed(2)}"/>`)
     .join('');
   const yl = stim.ticks
-    .map(
-      (t) =>
-        `<text class="ytick" x="${padL - 8}" y="${(y(t) + 4).toFixed(2)}" text-anchor="end">${axisLabel(t)}</text>`
-    )
+    .map((t) => `<text class="ytick" x="${padL - 10}" y="${(y(t) + 4).toFixed(2)}" text-anchor="end">${axisLabel(t)}</text>`)
     .join('');
   const xl = stim.series
     .filter((p) => p.i > 0)
-    .map(
-      (p) =>
-        `<text class="xtick" x="${x(p.i).toFixed(2)}" y="${height - 22}" text-anchor="middle">${p.label}</text>`
-    )
+    .map((p) => `<text class="xtick" x="${x(p.i).toFixed(2)}" y="${height - 20}" text-anchor="middle">${p.label}</text>`)
     .join('');
   const last = pts[pts.length - 1];
+
+  // (선택) 보조 정보: 원금 기준선 + 끝점 값 라벨. 세 집단에 똑같이 붙고 Y축 범위는 바꾸지 않는다.
+  let extra = '';
+  if (extras) {
+    const yb = y(stim.N);
+    const inPlot = yb >= padT && yb <= padT + plotH;
+    if (inPlot)
+      extra += `<line class="base" x1="${padL}" x2="${padL + plotW}" y1="${yb.toFixed(2)}" y2="${yb.toFixed(2)}"/>` +
+        `<text class="basetx" x="${padL + plotW}" y="${(yb >= padT + plotH - 4 ? yb - 7 : yb + 14).toFixed(2)}" text-anchor="end">원금 ${wonPlain(stim.N)}원</text>`;
+    const label = wonPlain(stim.current) + '원';
+    const w = label.length * 7.6 + 18;
+    const above = last[1] - padT > 40;
+    const by = above ? last[1] - 36 : last[1] - 14;
+    const bx = above ? last[0] - w + 8 : last[0] - w - 12;
+    extra += `<g class="endlbl"><rect x="${bx.toFixed(2)}" y="${by.toFixed(2)}" width="${w.toFixed(2)}" height="24" rx="12"/>` +
+      `<text x="${(bx + w / 2).toFixed(2)}" y="${(by + 16).toFixed(2)}" text-anchor="middle">${label}</text></g>`;
+  }
 
   // 같은 구조로 그려 AOI 영역을 측정한다 (data-aoi: 시선 분석용 영역 표시)
   const lineMinY = Math.min(...pts.map((p) => p[1]));
   const lineMaxY = Math.max(...pts.map((p) => p[1]));
   const pad = 8;
-  const slope = {
-    x: padL - pad,
-    y: lineMinY - pad,
-    w: plotW + 2 * pad,
-    h: lineMaxY - lineMinY + 2 * pad,
-  };
+  const slope = { x: padL - pad, y: lineMinY - pad, w: plotW + 2 * pad, h: lineMaxY - lineMinY + 2 * pad };
   return {
     svg:
       `<svg class="chart" viewBox="0 0 ${width} ${height}" width="100%" role="img" aria-label="자산 성장 곡선">` +
-      `<rect class="plotbg" x="${padL}" y="${padT}" width="${plotW}" height="${plotH}" rx="2"/>` +
       grid +
       `<g>${yl}</g>` +
       xl +
-      `<path class="line" d="${path}"/>` +
-      `<circle class="dot" cx="${last[0].toFixed(2)}" cy="${last[1].toFixed(2)}" r="4"/>` +
-      `<rect data-aoi="slope" class="aoi-rect" x="${slope.x.toFixed(2)}" y="${slope.y.toFixed(2)}" width="${slope.w.toFixed(
-        2
-      )}" height="${slope.h.toFixed(2)}" fill="none" pointer-events="none"/>` +
+      extra +
+      `<path class="line" pathLength="1" d="${path}"/>` +
+      `<circle class="dot" cx="${last[0].toFixed(2)}" cy="${last[1].toFixed(2)}" r="5"/>` +
+      `<rect data-aoi="slope" class="aoi-rect" x="${slope.x.toFixed(2)}" y="${slope.y.toFixed(2)}" width="${slope.w.toFixed(2)}" height="${slope.h.toFixed(2)}" fill="none" pointer-events="none"/>` +
       `<rect data-aoi="plot" class="aoi-rect" x="${padL}" y="${padT}" width="${plotW}" height="${plotH}" fill="none" pointer-events="none"/>` +
       `<rect data-aoi="axis" class="aoi-rect" x="0" y="${padT - 6}" width="${padL - 4}" height="${plotH + 12}" fill="none" pointer-events="none"/>` +
       `</svg>`,

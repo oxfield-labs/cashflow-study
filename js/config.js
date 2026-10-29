@@ -13,9 +13,12 @@ export const CONFIG = {
   WITHDRAW_DEADLINE: '자료 분석이 시작되기 전', // 이 날짜 이후에는 분석이 시작되어 철회가 어렵다
   TARGET_DESC: '만 19~39세, 최근 금융 앱을 이용해 보신 분', // 참여 조건 탈락 화면에 쓰는 대상 안내 (일반적 범위만. 어떤 문항 때문인지는 알리지 않는다)
 
+  // 개발용 모드(?debug=1, ?design=1) 허용 여부. 운영(파일럿·본 실험)에서는 반드시 false. 로컬 서버(localhost)에서는 이 값과 무관하게 열린다.
+  ALLOW_DEV_MODES: false,
+
   SHOW_COMPLETION_CODE: true, // 패널·크라우드 모집에서 '참여 확인'용 코드가 필요 없으면 false
 
-  NEXT_STYLE: 'reveal', // 자극물 화면의 '다음' 버튼: 'reveal'(시간이 되면 부드럽게 등장) | 'fill'(처음부터 보이고 안쪽이 차오름)
+  NEXT_STYLE: 'fill', // 자극물 화면의 '다음' 버튼: 'reveal'(시간이 되면 부드럽게 등장) | 'fill'(처음부터 보이고 안쪽이 차오름)
   MIN_EXPOSURE_SEC: 20, // 자극물 최소 노출 시간(초). 파일럿에서 조정
   TARGET_MIN: 5, // 안내문에 쓰는 예상 소요 시간(분)
   TARGET_MAX: 10,

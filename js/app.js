@@ -8,10 +8,12 @@ const params = new URLSearchParams(location.search);
 const MODE = params.get('mode') === 'lab' ? 'lab' : 'online'; // lab = Phase 2(아이트래킹, 연구자 동석)
 const PID = (params.get('pid') || '').trim() || null;
 const STAGE = ['pre', 'exp'].includes(params.get('stage')) && MODE === 'lab' ? params.get('stage') : 'all';
-const APP_VERSION = 'pilot-0.4';
-const DEBUG = params.get('debug') === '1';
+const APP_VERSION = 'pilot-1.0'; // 자극물 확정본(애니메이션·곡선·눈금·버튼 방식 고정). 바꾸면 버전을 올린다.
+// 개발용 모드(?debug=1, ?design=1)는 로컬 서버이거나 CONFIG.ALLOW_DEV_MODES가 true일 때만 켜진다. 운영 주소에서는 URL을 알아도 열리지 않는다.
+const DEV_OK = ['localhost', '127.0.0.1'].includes(location.hostname) || CONFIG.ALLOW_DEV_MODES === true;
+const DEBUG = DEV_OK && params.get('debug') === '1';
 // ?design=1 : 디자인 검토용. 모든 값이 채워진 상태로 처음부터 끝까지 같은 흐름을 눌러 볼 수 있다. C형 화면 고정, 저장·이어하기 없음.
-const DESIGN = params.get('design') === '1';
+const DESIGN = DEV_OK && params.get('design') === '1';
 const SHOW_AOI = params.get('aoi') === '1';
 const FORCE_GROUP = (MODE === 'lab' || DEBUG) && ['A', 'B', 'C'].includes(params.get('g')) ? params.get('g') : null;
 const MIN_EXPOSURE = (DEBUG || DESIGN) && params.get('min') !== null ? Number(params.get('min')) : DESIGN ? 6 : CONFIG.MIN_EXPOSURE_SEC;
@@ -56,11 +58,13 @@ function stepList() {
   return s;
 }
 const STEPS = PREVIEW ? ['asset', 'stimulus', 'endprev'] : stepList();
+// TEMP(검토용): 프로토타입에서만 마지막에 '이미 참여하셨어요' 화면을 붙여 동선을 확인한다. 실제 파일럿에서는 이 줄과 renderAlready 호출을 제거한다.
+if (DESIGN) STEPS.push('already');
 
 // 디자인 검토용 기본값 (DESIGN 모드에서만 사용, 저장되지 않음)
 if (DESIGN) {
   S.id = 'design';
-  S.group = 'C';
+  S.group = ['A', 'B', 'C'].includes(params.get('g')) ? params.get('g') : 'C';
   S.screen = { S1: 27, S2: '예', S3: '예', S4: '아니오' };
   const fillItems = (items, b) =>
     items.forEach((it) => {
@@ -69,8 +73,8 @@ if (DESIGN) {
     });
   Q.PRE_PAGES.forEach((pg) => fillItems(pg.items, S.pre));
   Q.POST_PAGES.forEach((pg) => fillItems(pg.items, S.post));
-  S.asset = { amount: 3_000_000, interests: ['overseas'], name: '민지' };
-  S.stim = buildStimulus('C', 3_000_000, new Date(), CONFIG.END_MONTH);
+  S.asset = { amount: 3_000_000, interests: (params.get('i') || 'overseas').split(','), name: '민지' }; // ?i=domestic,alt 로 관심 분야별 홈 추천을 확인
+  S.stim = buildStimulus(S.group, 3_000_000, new Date(), CONFIG.END_MONTH);
 }
 
 // ---------- 유틸 ----------
@@ -102,6 +106,15 @@ function deviceInfo() {
     app_version: APP_VERSION,
   };
 }
+// 선택·다음 버튼에 아주 짧은 진동(지원하는 기기만). 화면에는 영향이 없다.
+function tick() {
+  try {
+    navigator.vibrate?.(8);
+  } catch {}
+}
+document.addEventListener('change', (e) => e.target.matches?.('input[type=radio],input[type=checkbox]') && tick());
+document.addEventListener('click', (e) => e.target.closest?.('.btn.primary:not(:disabled),.tab,.chip') && tick());
+
 function log(type, data = {}) {
   S.events.push({ ts: Date.now(), step: currentStepId(), type, ...data });
 }
@@ -128,16 +141,36 @@ const PHASES = [
   { id: 'view', label: '화면 보기' },
   { id: 'post', label: '설문' },
 ];
+// 오른쪽 위 진행 표시: 전체 실험에서 어디쯤인지를 원형 링 하나로 보여 준다. (문항 진행은 본문의 가는 막대가 따로 맡는다)
+// 현재 단계 이름(안내·사전 질문·설문 등)이 있는 화면에서는 링 옆에 함께 적는다.
 function phaseBar(id) {
   if (PREVIEW) return '';
   const cur = phaseOf(id);
-  if (!cur) return '';
-  const vis = PHASES.filter((p) => STEPS.some((sid) => phaseOf(sid) === p.id));
-  const ci = vis.findIndex((p) => p.id === cur);
-  // 뒤로 가기 버튼과 같은 줄 오른쪽에: 현재 단계 이름 + 짧은 막대 4개 (자세한 단계 이름은 현재 것만)
-  return `<div class="phases" role="group" aria-label="진행 단계"><span class="pcur">${esc(vis[ci]?.label || '')}</span><ol>${vis
-    .map((p, i) => `<li class="${i < ci ? 'done' : i === ci ? 'on' : ''}" ${i === ci ? 'aria-current="step"' : ''}><i></i><span class="sr">${esc(p.label)}</span></li>`)
-    .join('')}</ol></div>`;
+  const label = cur ? PHASES.find((p) => p.id === cur)?.label || '' : '';
+  return ringHTML(label);
+}
+// 진행률은 '문항 수'로 가중한다: 문항이 많은 쪽은 쪽 안에서 한 문항씩 차오르고, 안내·금액 입력·화면 보기는 각 1로 센다. (쪽 단위로 세면 8%에서 갑자기 15%로 뛰는 것처럼 보인다)
+function stepWeight(id) {
+  if (id === 'screening') return Q.SCREENING.length;
+  const page = [...Q.PRE_PAGES, ...Q.POST_PAGES].find((p) => p.id === id);
+  if (page) return page.items.filter((i) => !(MODE === 'lab' && i.id === 'AC1')).length;
+  return 1;
+}
+function ringFraction(within = 0) {
+  const body = STEPS.filter((id) => id !== 'end' && id !== 'already'); // 종료·검토용 화면은 제외
+  const sum = (arr) => arr.reduce((a, id) => a + stepWeight(id), 0);
+  const total = Math.max(1, sum(body));
+  return Math.min(1, Math.max(0, (sum(body.slice(0, S.stepIdx)) + within) / total));
+}
+const RING_R = 14;
+const RING_C = 2 * Math.PI * RING_R;
+function setRing(within) {
+  const el = document.querySelector('.ring .rf');
+  if (el) el.style.strokeDashoffset = (RING_C * (1 - ringFraction(within))).toFixed(2);
+}
+function ringHTML(label) {
+  const p = ringFraction(0);
+  return `<div class="ringwrap" role="progressbar" aria-label="전체 진행률" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(p * 100)}">${label ? `<span class="pcur">${esc(label)}</span>` : ''}<svg class="ring" width="24" height="24" viewBox="0 0 36 36" aria-hidden="true"><circle class="rt" cx="18" cy="18" r="${RING_R}"/><circle class="rf" cx="18" cy="18" r="${RING_R}" stroke-dasharray="${RING_C.toFixed(2)}" style="stroke-dashoffset:${(RING_C * (1 - p)).toFixed(2)}" transform="rotate(-90 18 18)"/></svg></div>`;
 }
 
 // ---------- 화면 골격 ----------
@@ -149,7 +182,7 @@ function frame(inner, { back = false, progress = true, wide = false } = {}) {
     <div class="shell ${wide ? 'wide' : ''}">
       <div class="topbar">
         ${back ? '<button class="iconbtn" id="back" aria-label="이전">' + ICON.back + '</button>' : '<span></span>'}
-        ${pb || (progress ? `<div class="progress" aria-hidden="true"><i style="width:${Math.round(p * 100)}%"></i></div>` : '')}
+        ${pb || (progress ? ringHTML('') : '')}
       </div>
       <main class="screen">${inner}</main>
     </div>`;
@@ -169,6 +202,105 @@ const ICON = {
   coin: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M9 12h6"/></svg>',
   check: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg>',
 };
+
+// ---------- 한 문항씩 보여 주는 질문 러너 (설문 쪽·참여 조건 확인 공통) ----------
+// 한 화면에 한 문항만 크게 보여 읽기 부담을 줄인다. 답을 고르면 '다음' 버튼이 켜지고, 버튼을 눌러야 넘어간다(실수로 눌러 넘어가는 것을 막고, 답을 바꿀 수 있게 한다).
+// 저장 구조(bucket[문항ID])와 문항 순서(S.orders)는 이전과 같고, 문항별 응답 시간만 이벤트로 더 남긴다.
+function runQuestions({ items, bucket, eyebrow, intro, guide, back, lastLabel = '다음', onDone, onEach }) {
+  const firstLikert = items.findIndex((i) => i.type === 'likert');
+  frame(
+    `<div class="qwrap">
+       <div class="qtop"><span class="qeyebrow">${esc(eyebrow)}</span><span class="qcount"><b id="qi">1</b> / ${items.length}</span></div>
+       <div class="qbar" aria-hidden="true"><i id="qbar"></i></div>
+       ${intro ? `<p class="qintro">${fmt(intro)}</p>` : ''}
+       <form id="f">${items.map(itemHTML).join('')}</form>
+       <p class="qhint" id="qhint" hidden></p>
+     </div>
+     <div class="actions" id="qact"><button class="btn primary" id="next" disabled>다음</button></div>`,
+    { back: true }
+  );
+  const f = document.getElementById('f');
+  const qs = [...f.querySelectorAll('.q')];
+  const btn = document.getElementById('next');
+  const act = document.getElementById('qact');
+  const hint = document.getElementById('qhint');
+  const backBtn = document.getElementById('back');
+  items.forEach((it) => restore(it, f, bucket));
+  let idx = items.findIndex((it) => readItem(it, f) === null);
+  if (idx < 0) idx = DESIGN ? 0 : items.length - 1; // 검토 모드는 값이 채워져 있어도 첫 문항부터 보여 준다
+  let shownAt = 0;
+  let timer = null;
+  const last = () => idx === items.length - 1;
+  const show = (i) => {
+    clearTimeout(timer);
+    idx = i;
+    qs.forEach((q, k) => q.classList.toggle('active', k === i));
+    document.getElementById('qi').textContent = i + 1;
+    setRing(i);
+    document.getElementById('qbar').style.width = Math.round((i / items.length) * 100) + '%';
+    const it = items[i];
+    const answered = readItem(it, f) !== null;
+    act.classList.remove('off');
+    btn.textContent = last() ? lastLabel : '다음';
+    btn.disabled = !answered;
+    const parts = [];
+    if (i === 0 && guide) parts.push(fmt(guide));
+    if (i === firstLikert && it.type === 'likert') parts.push('<b>1~7</b> 중 하나를 눌러 주세요. 숫자가 클수록 <b>오른쪽 설명</b>에 가깝습니다.');
+    hint.innerHTML = parts.join('<br>');
+    hint.hidden = !parts.length;
+    backBtn.style.visibility = i === 0 && !back ? 'hidden' : '';
+    shownAt = performance.now();
+    if (it.type === 'number') setTimeout(() => qs[i].querySelector('input')?.focus({ preventScroll: true }), 60);
+  };
+  const advance = async () => {
+    if (onEach) {
+      const v = readItem(items[idx], f);
+      if (v !== null && (await onEach(items[idx], v))) return; // true면 여기서 멈춘다 (예: 참여 조건 불충족 시 바로 종료 화면)
+    }
+    if (last()) return finish();
+    show(idx + 1);
+  };
+  const finish = async () => {
+    const { out, firstMissing } = collectItems(items, f);
+    if (firstMissing) {
+      const k = items.findIndex((it) => readItem(it, f) === null);
+      show(k);
+      return toast('답하지 않은 문항이 있어요.');
+    }
+    btn.disabled = true;
+    await onDone(out);
+  };
+  const onAnswer = (e) => {
+    const it = items[idx];
+    const v = readItem(it, f);
+    qs[idx].classList.toggle('done', v !== null);
+    if (v === null) {
+      btn.disabled = true;
+      return;
+    }
+    bucket[it.id] = v;
+    persist();
+    btn.disabled = false;
+    if (e.type === 'change' && it.type !== 'number') {
+      log('answer', { id: it.id, ms: Math.round(performance.now() - shownAt) });
+    }
+  };
+  f.addEventListener('change', onAnswer);
+  f.addEventListener('input', (e) => e.target.type === 'text' && onAnswer(e));
+  f.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (!btn.disabled) advance();
+    }
+  });
+  btn.addEventListener('click', advance);
+  backBtn.addEventListener('click', () => {
+    if (idx > 0) show(idx - 1);
+    else prev();
+  });
+  items.forEach((it, k) => qs[k].classList.toggle('done', readItem(it, f) !== null));
+  show(idx);
+}
 
 // ---------- 폼 컴포넌트 ----------
 function itemHTML(item) {
@@ -279,20 +411,11 @@ function bindBack() {
   document.getElementById('back')?.addEventListener('click', prev);
 }
 
-// 일러스트: 파랑·민트의 단순한 기하 도형이 겹치는 아이콘 스타일 (직접 만든 도형. 겹친 부분만 그라데이션). 대문·탈락·종료 화면에서 쓴다.
-const ILLUS = {
-  welcome: `<svg class="illus" viewBox="0 0 220 160" aria-hidden="true"><defs><linearGradient id="grw" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2f5bf5"/><stop offset="1" stop-color="#44e29a"/></linearGradient><clipPath id="cpw"><rect x="62" y="12" width="76" height="136" rx="20"/></clipPath></defs><g fill="#44e29a"><circle cx="148" cy="106" r="42"/></g><g fill="#2f5bf5"><rect x="62" y="12" width="76" height="136" rx="20"/></g><g clip-path="url(#cpw)" fill="url(#grw)" opacity=".92"><circle cx="148" cy="106" r="42"/></g><rect x="78" y="34" width="44" height="9" rx="4.5" fill="#fff"/><rect x="78" y="52" width="30" height="9" rx="4.5" fill="#fff"/><rect x="78" y="70" width="44" height="9" rx="4.5" fill="#fff" opacity=".9"/><rect x="88" y="132" width="24" height="6" rx="3" fill="#fff"/><circle cx="34" cy="38" r="7" fill="#44e29a"/><circle cx="188" cy="40" r="5" fill="#2f5bf5"/></svg>`,
-  pre: `<svg class="illus" viewBox="0 0 220 160" aria-hidden="true"><defs><linearGradient id="grp" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2f5bf5"/><stop offset="1" stop-color="#44e29a"/></linearGradient><clipPath id="cpp"><path d="M86 42Q76 36 76 48L76 112Q76 124 86 118L148 86Q158 80 148 74Z"/></clipPath></defs><g fill="#44e29a"><circle cx="138" cy="86" r="48"/></g><g fill="#2f5bf5"><path d="M86 42Q76 36 76 48L76 112Q76 124 86 118L148 86Q158 80 148 74Z"/></g><g clip-path="url(#cpp)" fill="url(#grp)" opacity=".92"><circle cx="138" cy="86" r="48"/></g><circle cx="190" cy="34" r="6" fill="#44e29a"/><circle cx="26" cy="120" r="5" fill="#2f5bf5"/></svg>`,
-  out: `<svg class="illus" viewBox="0 0 220 160" aria-hidden="true"><defs><linearGradient id="gro" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2f5bf5"/><stop offset="1" stop-color="#44e29a"/></linearGradient><clipPath id="cpo"><path d="M80 128C34 98 28 66 44 50C58 36 78 42 80 60C86 42 106 36 120 50C136 66 128 98 80 128Z"/></clipPath></defs><g fill="#44e29a"><path transform="translate(58 14)" d="M80 128C34 98 28 66 44 50C58 36 78 42 80 60C86 42 106 36 120 50C136 66 128 98 80 128Z"/></g><g fill="#2f5bf5"><path d="M80 128C34 98 28 66 44 50C58 36 78 42 80 60C86 42 106 36 120 50C136 66 128 98 80 128Z"/></g><g clip-path="url(#cpo)" fill="url(#gro)" opacity=".92"><path transform="translate(58 14)" d="M80 128C34 98 28 66 44 50C58 36 78 42 80 60C86 42 106 36 120 50C136 66 128 98 80 128Z"/></g><circle cx="190" cy="30" r="6" fill="#2f5bf5"/><circle cx="24" cy="124" r="5" fill="#44e29a"/></svg>`,
-  done: `<svg class="illus" viewBox="0 0 220 160" aria-hidden="true"><defs><linearGradient id="grd" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2f5bf5"/><stop offset="1" stop-color="#44e29a"/></linearGradient><clipPath id="cpd"><rect x="40" y="26" width="104" height="104" rx="28"/></clipPath></defs><g fill="#44e29a"><circle cx="146" cy="104" r="46"/></g><g fill="#2f5bf5"><rect x="40" y="26" width="104" height="104" rx="28"/></g><g clip-path="url(#cpd)" fill="url(#grd)" opacity=".92"><circle cx="146" cy="104" r="46"/></g><path d="M68 80L92 104L128 56" stroke="#fff" stroke-width="13" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="26" cy="40" r="6" fill="#44e29a"/><circle cx="196" cy="30" r="5" fill="#2f5bf5"/></svg>`,
-};
-
 // 대문(웰컴) 화면: 딱딱한 동의서 이전에 연구가 어떤 것인지 가볍게 알려 주고 시작을 누르게 한다.
 function renderWelcome() {
   const lab = MODE === 'lab';
   frame(
     `<section class="welcome">
-       <div class="wl-hero">${ILLUS.welcome}</div>
        <p class="wl-kicker">${esc(CONFIG.STUDY_TITLE)}</p>
        <h1 class="wl-title">안녕하세요.<br>연구에 관심 가져 주셔서<br>감사합니다</h1>
        <p class="wl-sub">${lab ? '연구자와 함께 진행하는 현장 참여입니다.' : '모바일 금융 앱 화면을 보고 느끼는 점을 알아보는 연구예요.'}</p>
@@ -315,6 +438,20 @@ function renderWelcome() {
 }
 
 // ---------- 동의 / 스크리닝 ----------
+// TEMP(중간발표용): '임시 다시 참여하기'는 실제 파일럿 전에 이 버튼과 핸들러를 함께 제거한다.
+function renderAlready() {
+  frame(`<h1 class="h1">이미 참여하셨어요</h1><p class="lead">이 브라우저에서 이미 연구에 참여하신 기록이 있습니다. 한 분당 한 번만 참여할 수 있어 중복 참여는 어렵습니다. 감사합니다. 주변에 참여할 수 있는 분이 계시다면 링크를 공유해 주세요.</p>
+    <div class="actions"><div class="actwrap solo"><button class="btn primary" id="copylink" type="button">링크 복사</button>
+      <button class="btn ghost" id="temp-retry" type="button" style="margin-top:8px">임시 다시 참여하기</button></div></div>`, { progress: false });
+  document.getElementById('copylink').addEventListener('click', () => copyText(location.origin + location.pathname, '링크를 복사했어요.'));
+  document.getElementById('temp-retry').addEventListener('click', () => {
+    try {
+      ['cfx_participated', 'cfx_screenedout', 'cfx_resume_v1'].forEach((k) => localStorage.removeItem(k));
+    } catch {}
+    location.reload();
+  });
+}
+
 function renderConsent() {
   const done = (() => {
     try {
@@ -324,15 +461,7 @@ function renderConsent() {
     }
   })();
   if (done && !DEBUG && !DESIGN && MODE === 'online') {
-    // TEMP(중간발표용): '임시 다시 참여하기'는 실제 파일럿 전에 이 버튼과 아래 핸들러를 함께 제거한다.
-    frame(`<h1 class="h1">이미 참여하셨어요</h1><p class="lead">이 브라우저에서 이미 연구에 참여하신 기록이 있습니다. 한 분당 한 번만 참여할 수 있어 중복 참여는 어렵습니다. 감사합니다.</p>
-      <div class="actions"><div class="actwrap solo"><button class="btn ghost" id="temp-retry" type="button">임시 다시 참여하기</button></div></div>`, { progress: false });
-    document.getElementById('temp-retry').addEventListener('click', () => {
-      try {
-        ['cfx_participated', 'cfx_screenedout', 'cfx_resume_v1'].forEach((k) => localStorage.removeItem(k));
-      } catch {}
-      location.reload();
-    });
+    renderAlready();
     return;
   }
   try {
@@ -343,24 +472,26 @@ function renderConsent() {
   frame(
     `<h1 class="h1">연구 참여 안내와 동의</h1>
      <p class="lead">${lab ? '연구자와 함께 진행하는 현장 참여입니다.' : '아래 내용을 읽고 동의해 주세요.'}</p>
-     <div class="card flat consent">
-       <p>본 조사는 모바일 금융 앱 화면을 보고 자산 상태를 어떻게 판단하는지 알아보는 학술 연구입니다.</p>
-       <ul>
-         <li>소요 시간은 약 ${CONFIG.TARGET_MAX}분입니다.</li>
-         <li>응답은 익명으로 처리되며 연구 목적으로만 사용됩니다. 이름과 같은 개인 식별 정보는 저장하지 않습니다.</li>
-         <li>입력하신 금액은 화면 구성에만 쓰이며 실제 금융 정보와 연동되지 않습니다.</li>
-         <li>언제든 중단할 수 있고, 중단해도 불이익은 없습니다.</li>
-         ${lab ? '<li>시선 추적 장비로 화면을 보는 동안의 시선이 기록됩니다.</li>' : ''}
+     <div class="consent">
+       <p class="cs-intro">모바일 금융 앱 화면을 보고 <b>자산 상태를 어떻게 판단하는지</b> 알아보는 학술 연구입니다.</p>
+       <ul class="cs-list">
+         <li><span class="ci">${ICON.clock}</span><div><b>소요 시간</b><p>약 ${CONFIG.TARGET_MAX}분</p></div></li>
+         <li><span class="ci">${ICON.lock}</span><div><b>익명 처리</b><p>응답은 연구 목적으로만 쓰이며, 이름 같은 개인 식별 정보는 저장하지 않습니다.</p></div></li>
+         <li><span class="ci">${ICON.coin}</span><div><b>가상 데이터</b><p>입력하신 금액은 화면 구성에만 쓰이고, 실제 금융 정보와 연동되지 않습니다.</p></div></li>
+         <li><span class="ci">${ICON.check}</span><div><b>자유로운 중단</b><p>언제든 그만둘 수 있고, 중단해도 불이익이 없습니다.</p></div></li>
+         ${lab ? `<li><span class="ci">${ICON.trend}</span><div><b>시선 기록</b><p>시선 추적 장비로 화면을 보는 동안의 시선이 기록됩니다.</p></div></li>` : ''}
        </ul>
        <dl class="rinfo">
-         <dt>연구자 :</dt><dd>${esc(CONFIG.RESEARCHER_CONTACT)}</dd>
-         <dt>연락처 :</dt><dd>${mailHTML()}</dd>
-         <dt>생명윤리위원회 심의 :</dt><dd>${esc(CONFIG.IRB_NUMBER)}</dd>
+         <dt>연구자</dt><dd>${esc(CONFIG.RESEARCHER_CONTACT)}</dd>
+         <dt>연락처</dt><dd>${mailHTML()}</dd>
+         <dt>생명윤리위원회 심의</dt><dd>${esc(CONFIG.IRB_NUMBER)}</dd>
        </dl>
      </div>
      ${lab && PID ? `<p class="small muted">참가자 ID: <b>${esc(PID)}</b></p>` : ''}
-     <label class="agree"><input type="checkbox" id="agree"><span class="box">${ICON.check}</span><span>${lab ? '현장에서 서면 동의를 받았음을 확인합니다 (연구자 확인).' : '위 내용을 읽었으며 연구 참여에 동의합니다.'}</span></label>
-     <div class="actions"><button class="btn primary" id="next" disabled>동의하고 시작하기</button></div>`,
+     <div class="actions consent-act"><div class="actwrap">
+       <label class="agree"><input type="checkbox" id="agree"><span class="box">${ICON.check}</span><span>${lab ? '현장에서 서면 동의를 받았음을 확인합니다 (연구자 확인).' : '위 내용을 읽었으며 연구 참여에 동의합니다.'}</span></label>
+       <button class="btn primary" id="next" disabled>동의하고 시작하기</button>
+     </div></div>`,
     { progress: false, back: true }
   );
   document.getElementById('back')?.addEventListener('click', () => {
@@ -395,56 +526,48 @@ function renderConsent() {
 }
 
 function renderScreening() {
-  frame(
-    `<h1 class="h1">참여 조건 확인</h1><p class="lead">몇 가지만 확인할게요.</p>
-     <form id="f">${Q.SCREENING.map(itemHTML).join('')}</form>${nextBtn()}`,
-    { back: false }
-  );
-  const f = document.getElementById('f');
-  Q.SCREENING.forEach((it) => restore(it, f, S.screen));
-  const markDone = () => {
-    for (const it of Q.SCREENING) {
-      const box = f.querySelector(`[data-qid="${it.id}"]`);
-      const ok = readItem(it, f) !== null;
-      box.classList.toggle('done', ok);
-      if (ok) box.classList.remove('missing');
-    }
-  };
-  f.addEventListener('input', markDone);
-  f.addEventListener('change', markDone);
-  f.addEventListener('keyup', markDone);
-  markDone();
-  document.getElementById('next').addEventListener('click', async () => {
-    const { out, firstMissing } = collectItems(Q.SCREENING, f);
-    if (firstMissing) {
-      firstMissing.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      return toast('답하지 않은 문항이 있어요.');
-    }
-    Object.assign(S.screen, out);
-    const passed = Q.SCREENING.every((it) => it.pass(out[it.id]));
-    await store.savePart(S.id, 'screen', { ...S.screen, consent: true, passed }, passed ? 'screened' : 'screened_out');
-    if (!passed) {
-      clearSaved();
-      leaveStep();
-      try {
-        if (!DESIGN) localStorage.setItem('cfx_screenedout', '1'); // 같은 브라우저에서 답을 바꿔 다시 들어오는 것을 막는다
-      } catch {}
-      renderScreenedOut('continue');
-      await flushEvents();
-      return;
-    }
-    next();
+  runQuestions({
+    items: Q.SCREENING,
+    bucket: S.screen,
+    eyebrow: '참여 조건 확인',
+    intro: '몇 가지만 확인할게요.',
+    back: false,
+    lastLabel: '확인했어요',
+    // 조건에 맞지 않는 값을 '다음'으로 확정하는 즉시 참여 불가 화면을 보여 준다 (남은 문항은 묻지 않는다)
+    onEach: async (it, v) => {
+      if (it.pass(v)) return false;
+      S.screen[it.id] = v;
+      await screenOut();
+      return true;
+    },
+    onDone: async (out) => {
+      Object.assign(S.screen, out);
+      await store.savePart(S.id, 'screen', { ...S.screen, consent: true, passed: true }, 'screened');
+      next();
+    },
   });
+  async function screenOut() {
+    await store.savePart(S.id, 'screen', { ...S.screen, consent: true, passed: false }, 'screened_out');
+    clearSaved();
+    leaveStep();
+    try {
+      if (!DESIGN) localStorage.setItem('cfx_screenedout', '1'); // 같은 브라우저에서 답을 바꿔 다시 들어오는 것을 막는다
+    } catch {}
+    renderScreenedOut('continue');
+    await flushEvents();
+  }
 }
 
 // 참여 조건에 맞지 않을 때: 개인 평가처럼 들리지 않게 쓰고, 어떤 문항 때문인지는 알리지 않는다. 링크 복사로 주변의 해당자에게 공유를 청한다.
 function renderScreenedOut(tempMode) {
   frame(
-    `${ILLUS.out}<h1 class="h1 center">관심 가져 주셔서<br>감사합니다</h1>
-     <div class="card flat consent">
-       <p>이번 연구는 연구 설계상 정해진 대상을 모집하고 있어, 이번에는 함께하기 어렵습니다.</p>
-       <p><b>대상</b><br>${esc(CONFIG.TARGET_DESC)}</p>
-       <p>주변에 해당되는 분이 계시다면 링크를 공유해 주세요.</p>
+    `<h1 class="h1 center">관심 가져 주셔서<br>감사합니다</h1>
+     <div class="consent">
+       <ul class="cs-list">
+         <li><span class="ci">${ICON.check}</span><div><b>이번에는 함께하기 어려워요</b><p>이번 연구는 연구 설계상 정해진 대상을 모집하고 있습니다.</p></div></li>
+         <li><span class="ci">${ICON.lock}</span><div><b>모집 대상</b><p>${esc(CONFIG.TARGET_DESC)}</p></div></li>
+         <li><span class="ci">${ICON.mail}</span><div><b>공유해 주세요</b><p>주변에 해당되는 분이 계시다면 링크를 공유해 주세요.</p></div></li>
+       </ul>
      </div>
      <div class="actions"><div class="actwrap solo"><button class="btn primary" id="copylink">링크 복사</button>
        <button class="btn ghost" id="temp-skip" type="button" style="margin-top:8px">무시하고 계속 진행하기 (임시)</button></div></div>`,
@@ -540,11 +663,11 @@ function renderGuide() {
   frame(
     `<h1 class="h1">원활한 실험 진행을 위해<br>안내사항을 확인해 주세요</h1>
      ${flowCard()}
-     <ol class="guide">${items
+     <ul class="cs-list guide">${items
        .map(
-         (it) => `<li><div><h3>${esc(it[0])}</h3><p>${nl2br(it[1])}</p></div></li>`
+         (it, i) => `<li><span class="ci">${[ICON.trend, ICON.lock, ICON.clock][i]}</span><div><b>${esc(it[0])}</b><p>${nl2br(it[1])}</p></div></li>`
        )
-       .join('')}</ol>${nextBtn('확인했어요')}`,
+       .join('')}</ul>${nextBtn('확인했어요')}`,
     { back: false }
   );
   document.getElementById('next').addEventListener('click', next);
@@ -555,65 +678,28 @@ function renderSurveyPage(page, bucket, { saveAs, doneStatus, back }) {
   if (!S.orders[page.id]) S.orders[page.id] = (page.shuffle ? shuffle(page.items) : page.items).map((i) => i.id);
   const items = S.orders[page.id].map((id) => page.items.find((i) => i.id === id)).filter((i) => !(MODE === 'lab' && i.id === 'AC1'));
   const isPre = bucket === S.pre;
-  const pages = isPre ? Q.PRE_PAGES : Q.POST_PAGES;
-  const pageNo = pages.findIndex((p) => p.id === page.id) + 1;
-  const hasLikert = items.some((i) => i.type === 'likert');
-  const guideHTML = `<div class="guidebox">
-      ${page.guide ? `<p>${fmt(page.guide)}</p>` : ''}
-      ${hasLikert ? '<p class="legend"><b>1~7</b> 중 하나를 눌러 주세요. 숫자가 클수록 <b>오른쪽 설명</b>에 가깝습니다.</p>' : ''}
-    </div>`;
-  frame(
-    `<div class="titlerow"><h1 class="h1">${esc(page.title)}</h1><div class="tmeta"><span class="eyebrow">${pageNo}/${pages.length}</span></div></div>
-     ${page.intro ? `<p class="lead">${fmt(page.intro)}</p>` : ''}
-     ${page.guide || hasLikert ? guideHTML : ''}
-     <form id="f">${items.map(itemHTML).join('')}</form>
-     <div class="actions"><button class="btn primary withcount" id="next"><span>다음</span><span class="bc"><b id="cnt">0</b> / ${items.length}</span></button></div>`,
-    { back }
-  );
-  bindBack();
-  const f = document.getElementById('f');
-  items.forEach((it) => restore(it, f, bucket));
-  const refresh = () => {
-    let n = 0;
-    for (const it of items) {
-      const ok = readItem(it, f) !== null;
-      const box = f.querySelector(`[data-qid="${it.id}"]`);
-      box.classList.toggle('done', ok);
-      if (ok) {
-        n++;
-        box.classList.remove('missing');
-      }
-    }
-    for (const it of items) {
-      const v = readItem(it, f);
-      if (v !== null) bucket[it.id] = v;
-    }
-    persist();
-    document.getElementById('cnt').textContent = n;
-    document.getElementById('next').classList.toggle('full', n === items.length);
-  };
-  f.addEventListener('input', refresh);
-  f.addEventListener('change', refresh);
-  refresh();
-  document.getElementById('next').addEventListener('click', async () => {
-    const { out, firstMissing } = collectItems(items, f);
-    if (firstMissing) {
-      firstMissing.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      const k = f.querySelectorAll('.q.missing').length;
-      return toast(`답하지 않은 문항이 ${k}개 있어요.`);
-    }
-    Object.assign(bucket, out);
-    const payload = { ...bucket, _order: { ...(bucket._order || {}), [page.id]: S.orders[page.id] } };
-    bucket._order = payload._order;
-    const lastPre = isPre && page.id === Q.PRE_PAGES[Q.PRE_PAGES.length - 1].id;
-    const lastPost = !isPre && page.id === Q.POST_PAGES[Q.POST_PAGES.length - 1].id;
-    leaveStep();
-    await store.savePart(S.id, saveAs, payload, lastPre ? 'pre_done' : lastPost ? 'post_done' : null);
-    if (lastPost) await store.savePart(S.id, 'timing', S.timing, null);
-    S.stepIdx++;
-    history.pushState({ s: S.stepIdx }, '');
-    flushEvents();
-    enterStep();
+  runQuestions({
+    items,
+    bucket,
+    eyebrow: page.title,
+    intro: page.intro,
+    guide: page.guide,
+    back,
+    lastLabel: '다음',
+    onDone: async (out) => {
+      Object.assign(bucket, out);
+      const payload = { ...bucket, _order: { ...(bucket._order || {}), [page.id]: S.orders[page.id] } };
+      bucket._order = payload._order;
+      const lastPre = isPre && page.id === Q.PRE_PAGES[Q.PRE_PAGES.length - 1].id;
+      const lastPost = !isPre && page.id === Q.POST_PAGES[Q.POST_PAGES.length - 1].id;
+      leaveStep();
+      await store.savePart(S.id, saveAs, payload, lastPre ? 'pre_done' : lastPost ? 'post_done' : null);
+      if (lastPost) await store.savePart(S.id, 'timing', S.timing, null);
+      S.stepIdx++;
+      history.pushState({ s: S.stepIdx }, '');
+      flushEvents();
+      enterStep();
+    },
   });
 }
 
@@ -623,8 +709,7 @@ function renderPreStim() {
   // 진입 직전 화면: 밝은 톤은 유지하되 큰 일러스트와 다른 구성으로 '곧 화면 보기가 시작된다'는 인지를 준다.
   frame(
     `<section class="pre-go">
-       <div class="pg-top"><span class="pg-tag">${esc(PHASES[2].label)}</span><span class="pg-dots" aria-hidden="true"><i></i><i></i><i></i></span></div>
-       ${ILLUS.pre}
+       <div class="pg-top"><span class="pg-tag">${esc(PHASES[2].label)}</span></div>
        <h1 class="pg-title">곧 가상의 투자 앱<br>화면이 시작됩니다</h1>
        <p class="pg-sub">아래 세 가지만 기억해 주세요</p>
        <ol class="pg-list">
@@ -666,7 +751,7 @@ function renderAsset() {
      <label class="fld"><span>이름</span><input id="name" class="inp" type="text" maxlength="12" placeholder="이름을 입력해주세요" autocomplete="off" value="${esc(a.name)}"></label>
      <label class="fld"><span>현재 총 투자 자산</span>
        <div class="inp amt"><input id="amount" type="text" inputmode="numeric" placeholder="0" autocomplete="off" value="${a.amount ? wonPlain(a.amount) : ''}"><em>원</em></div></label>
-     <p class="hint" id="amt-hint">${wonPlain(Q.ASSET_MIN)}원 이상 ${wonPlain(Q.ASSET_MAX)}원 이하로 입력해 주세요.</p>
+     <p class="hint" id="amt-hint">${Q.koWon(Q.ASSET_MIN)} 이상 ${Q.koWon(Q.ASSET_MAX)} 이하로 입력해 주세요.</p>
      <div class="quick">${Q.QUICK_ADD.map((q, i) => `<button type="button" class="chip" data-add="${q.v}">${q.label}</button>`).join('')}</div>
      <p class="label2">주요 관심 투자 분야 (다중 선택 가능)</p>
      <div class="interests">${Q.INTERESTS.map(
@@ -723,17 +808,47 @@ const NEWS = [
   ['마이데이터', '머니리포트 · 1시간 전', 'Cashflow, AI 기반 맞춤 포트폴리오 진단 서비스 정식 오픈'],
   ['배당/채권', '투자뉴스랩 · 3시간 전', '고배당 ETF로 몰리는 투자금... 월배당 상품 인기 지속'],
 ];
-const PICKS = [
-  ['A', '#111', 'Apple', 'AAPL', '272,400원', '+2.45%'],
-  ['T', '#e03131', 'Tesla', 'TSLA', '284,500원', '+4.12%'],
-  ['S', '#1c4ed8', '삼성전자', '005930', '79,800원', '+0.76%'],
-];
+// 선택한 관심 분야에 따라 홈의 '맞춤 추천 상품'이 달라진다. 분기 규칙은 세 집단이 같고(집단은 무작위 배정), 모두 소폭 상승으로 보여 자극물의 수익 방향과 맞춘다.
+const PICK_POOL = {
+  overseas: [
+    ['A', '#111', 'Apple', 'AAPL', '272,400원', '+2.45%'],
+    ['T', '#e03131', 'Tesla', 'TSLA', '284,500원', '+4.12%'],
+    ['N', '#2b8a3e', 'NVIDIA', 'NVDA', '198,300원', '+1.87%'],
+  ],
+  domestic: [
+    ['S', '#1c4ed8', '삼성전자', '005930', '79,800원', '+0.76%'],
+    ['H', '#e8590c', 'SK하이닉스', '000660', '231,500원', '+1.92%'],
+    ['N', '#2f9e44', 'NAVER', '035420', '212,000원', '+1.35%'],
+  ],
+  savings: [
+    ['예', '#12b886', '12개월 정기예금', '시중은행 최고금리', '연 3.45%', '+0.10%p'],
+    ['적', '#228be6', '24개월 자유적금', '우대금리 포함', '연 3.80%', '+0.05%p'],
+    ['P', '#7950f2', 'CMA 파킹통장', '수시입출금', '연 2.10%', '+0.03%p'],
+  ],
+  alt: [
+    ['₿', '#f59f00', '비트코인', 'BTC', '98,420,000원', '+3.08%'],
+    ['E', '#5c7cfa', '이더리움', 'ETH', '4,512,000원', '+2.61%'],
+    ['G', '#c9a227', 'KRX 금', '금현물', '142,300원', '+0.94%'],
+  ],
+};
+function picksFor(interests) {
+  const sel = (interests && interests.length ? interests : ['overseas']).filter((k) => PICK_POOL[k]);
+  const out = [];
+  for (let r = 0; out.length < 3 && r < 3; r++) sel.forEach((k) => out.length < 3 && PICK_POOL[k][r] && out.push(PICK_POOL[k][r]));
+  return out;
+}
 
-function assetCard(st, { cta = false } = {}) {
-  return `<section class="card asset-card">
+function assetCard(st, { cta = false, flat = false } = {}) {
+  if (flat)
+    return `<section class="asset-flat">
     <div class="row between"><span class="lbl">내 자산</span><span class="badge"><i></i>마이데이터 실시간</span></div>
     <div class="big">${won(st.current)}</div>
-    <div class="sub"><span class="coin">${ICON.coin}</span>원금 ${won(st.N)}<span class="sep">·</span><span class="up">${ICON.up} +${won(st.gain)} (+${pct(st.gainPct)})</span></div>
+    <div class="sub"><span>원금 ${won(st.N)}</span><span class="sep">·</span><span class="up">${ICON.up} +${won(st.gain)} (+${pct(st.gainPct)})</span></div>
+  </section>`;
+  return `<section class="hero">
+    <div class="row between"><span class="lbl">내 자산</span><span class="badge"><i></i>마이데이터 실시간</span></div>
+    <div class="big">${won(st.current)}</div>
+    <div class="sub"><span>원금 ${won(st.N)}</span><span class="sep">·</span><span class="up">${ICON.up} +${won(st.gain)} (+${pct(st.gainPct)})</span></div>
     ${cta ? `<button class="cta" id="open-status">${ICON.trend}<span>내 자산 현황 보기</span>${ICON.chev}</button>` : ''}
   </section>`;
 }
@@ -758,14 +873,14 @@ function showHome() {
       <header class="home-head"><div class="logo"><span class="lc">C</span><span class="lf">f</span><b>${esc(CONFIG.APP_NAME)}</b></div><button class="bellbtn" aria-label="알림">${ICON.bell}</button></header>
       <h1 class="greet">${esc(S.asset.name)}님,<br><span>오늘의 자산 현황을 확인하세요</span></h1>
       ${assetCard(st, { cta: true })}
-      <section class="card div-row"><span><i class="gdot"></i>예상 연간 배당금</span><b>${won(st.dividend)}</b></section>
+      <section class="div-row"><span><i class="gdot"></i>예상 연간 배당금</span><b>${won(st.dividend)}</b></section>
       <div class="sec-h"><div><h2>맞춤 추천 상품</h2><p>선택하신 투자 성향에 맞춘 인기 종목</p></div>${ICON.chev}</div>
-      <div class="list">${PICKS.map(
-        (p) => `<div class="card pick"><span class="av" style="background:${p[1]}">${p[0]}</span><div class="nm"><b>${esc(p[2])}</b><small>${esc(p[3])}</small></div><div class="pr"><b>${p[4]}</b><span class="up">${p[5]}</span></div></div>`
+      <div class="list">${picksFor(S.asset.interests).map(
+        (p) => `<div class="pick"><span class="av" style="background:${p[1]}">${p[0]}</span><div class="nm"><b>${esc(p[2])}</b><small>${esc(p[3])}</small></div><div class="pr"><b>${p[4]}</b><span class="up">${p[5]}</span></div></div>`
       ).join('')}</div>
       <div class="sec-h"><div><h2>주요 시장 뉴스</h2><p>실시간 금융 시장 핵심 이슈 브리핑</p></div>${ICON.chev}</div>
       <div class="list">${NEWS.map(
-        (n) => `<div class="card news"><div class="meta"><span class="tag">${esc(n[0])}</span><small>${esc(n[1])}</small></div><p>${esc(n[2])}</p></div>`
+        (n) => `<div class="news"><div class="meta"><span class="tag">${esc(n[0])}</span><small>${esc(n[1])}</small></div><p>${esc(n[2])}</p></div>`
       ).join('')}</div>
     </div>`,
     { progress: false, wide: true }
@@ -791,20 +906,20 @@ function showStatus() {
   ss.statusEntries++;
   ss.enteredAt = performance.now();
   ss.visibleSince = document.visibilityState === 'visible' ? performance.now() : null;
-  const chart = chartSVG(st);
+  const chart = chartSVG(st, undefined, undefined, { extras: params.get('extra') === '1' });
   const need = MIN_EXPOSURE * 1000;
   frame(
     `<div class="status ${SHOW_AOI ? 'show-aoi' : ''}">
       <header class="sub-head"><button class="iconbtn" id="sback" aria-label="이전">${ICON.back}</button><h1>내 자산 현황</h1><span></span></header>
-      ${assetCard(st)}
-      <section class="chart-card" id="chart-card" data-aoi="chart">${chart.svg}</section>
+      ${assetCard(st, { flat: true })}
+      <section class="chart-card" id="chart-card" data-aoi="chart">${DESIGN ? `<span class="typetag">Type ${st.group} · 탭하여 전환</span>` : ''}${chart.svg}</section>
       <div class="tabs" role="tablist">${['1D', '1W', '1M', '6M', '1Y', 'ALL']
         .map((t) => `<button class="tab ${t === '6M' ? 'on' : ''}" data-tab="${t}" ${t === '6M' ? 'aria-selected="true"' : ''}>${t}</button>`)
         .join('')}</div>
       <div class="sec-h plain"><h2>월간 평가액 리포트</h2><small>단위 (원)</small></div>
       <div class="list">${st.monthly
         .map(
-          (m, i) => `<div class="card rep" data-m="${m.month}">
+          (m, i) => `<div class="rep" data-m="${m.month}">
             <div class="rep-top"><span class="mdot">${m.month}</span>
               <div class="rt"><b>${m.month}월 월간 평가액</b><small>누적 수익률 +${pct(m.cumRet)}</small></div>
               <div class="rv"><b>${wonPlain(m.value)}원</b><span class="up">+${wonPlain(m.delta)}원</span></div></div>
@@ -835,6 +950,14 @@ function showStatus() {
       log('detail_toggle', { month: b.dataset.det, open: !body.hidden });
     })
   );
+  // TEMP(검토용): 프로토타입에서만 차트를 탭하면 A→B→C로 바뀐다. 실제 파일럿에서는 이 블록과 .typetag를 제거한다.
+  if (DESIGN)
+    document.getElementById('chart-card').addEventListener('click', () => {
+      const g = { A: 'B', B: 'C', C: 'A' }[S.group];
+      S.group = g;
+      S.stim = buildStimulus(g, S.asset.amount, new Date(), CONFIG.END_MONTH);
+      showStatus();
+    });
   attachStimLogging();
   measureAOI(chart.geometry);
   startChartClock(need);
@@ -870,6 +993,7 @@ function startChartClock(need) {
       bar.removeAttribute('aria-hidden');
       btn.style.setProperty('--p', Math.round(done * 100) + '%');
       btn.classList.toggle('timed', !ready);
+      btn.textContent = ready ? '다음' : '화면을 둘러보세요'; // 숫자(남은 시간)는 보여 주지 않는다
     } else {
       if (ready && first) bar.classList.add('instant'); // 이미 시간을 채우고 다시 들어온 경우엔 애니메이션 없이 바로 보여 준다
       bar.classList.toggle('hold', !ready);
@@ -996,13 +1120,15 @@ async function renderEnd() {
   S.code = S.code || makeCode();
   const lab = MODE === 'lab';
   frame(
-    `${ILLUS.done}<h1 class="h1 center">참여해 주셔서 감사합니다</h1>
-     <div class="card flat debrief">
-       <p>시간 내어 참여해 주셔서 진심으로 감사드립니다. 응답은 익명으로 이 연구의 분석에만 사용되며, 다른 목적으로는 쓰이지 않습니다.</p>
-       <p>화면에 나온 금액과 수익은 입력하신 금액으로 만든 <b>가상 자료</b>이며 실제 투자 성과와 무관합니다. 연구 목적과 결과는 자료 수집이 모두 끝난 뒤 이메일로 요청하시면 알려 드립니다.</p>
+    `<div class="donebadge" aria-hidden="true">${ICON.check}</div><h1 class="h1 center">참여해 주셔서 감사합니다</h1>
+     <div class="consent debrief">
+       <ul class="cs-list">
+         <li><span class="ci">${ICON.lock}</span><div><b>익명으로 분석돼요</b><p>시간 내어 참여해 주셔서 감사합니다. 응답은 익명으로 이 연구의 분석에만 사용되며, 다른 목적으로는 쓰이지 않습니다.</p></div></li>
+         <li><span class="ci">${ICON.coin}</span><div><b>화면의 금액은 가상이에요</b><p>화면에 나온 금액과 수익은 입력하신 금액으로 만든 <b>가상 자료</b>이며 실제 투자 성과와 무관합니다. 연구 목적과 결과는 자료 수집이 모두 끝난 뒤 이메일로 요청하시면 알려 드립니다.</p></div></li>
+       </ul>
      </div>
      ${CONFIG.SHOW_COMPLETION_CODE ? `<div class="codebox"><small>참여 코드</small><b id="code">${S.code}</b><button class="btn ghost" id="copycode" type="button">코드 복사</button></div>` : ''}
-     <div class="card flat withdraw">
+     <div class="withdraw">
        <h2>응답을 철회하고 싶다면</h2>
        <p>${esc(CONFIG.WITHDRAW_DEADLINE)}까지 연구자(${contactHTML()})에게 <b>참여 코드</b>와 함께 요청하시면, 해당 응답을 분석에서 제외하고 삭제합니다. 이름 등은 저장하지 않아 코드로만 찾을 수 있으니 코드를 꼭 보관해 주세요.</p>
        ${CONFIG.SHOW_COMPLETION_CODE ? `<a class="btn ghost" id="withdraw" href="mailto:${esc(CONFIG.RESEARCHER_EMAIL)}?subject=${encodeURIComponent('[철회 요청] 참여 코드 ' + S.code)}&body=${encodeURIComponent('참여 코드: ' + S.code + '\n위 코드의 응답을 연구에서 제외하고 삭제해 주세요.')}">이메일로 철회 요청</a>` : ''}
@@ -1133,6 +1259,7 @@ const RENDER = {
   stimulus: renderStimulus,
   poststart: renderPostStart,
   end: renderEnd,
+  already: renderAlready, // TEMP(검토용)
   endprev: () => frame(`<h1 class="h1">미리보기 끝</h1><p class="lead">Type ${PREVIEW} 화면을 확인했습니다. 아무것도 저장되지 않았습니다.</p>`, { progress: false }),
   endpre: renderEndPre,
 };
@@ -1165,11 +1292,12 @@ if (DESIGN) {
   // 검토용 이동 칩: 단계 사이를 오가며 동선을 확인한다 (참가자 화면에는 나타나지 않음)
   const chip = document.createElement('div');
   chip.style.cssText = 'position:fixed;top:-2px;left:50%;transform:translateX(-50%);z-index:99;opacity:.92;white-space:nowrap;width:max-content;scale:.78;display:flex;gap:4px;align-items:center;background:rgba(17,24,39,.82);color:#fff;border-radius:999px;padding:3px 6px;font:600 11px/1 system-ui,sans-serif';
-  chip.innerHTML = '<button id="dz-p" aria-label="이전 단계" style="all:unset;cursor:pointer;padding:4px 7px">‹</button><span id="dz-l"></span><button id="dz-n" aria-label="다음 단계" style="all:unset;cursor:pointer;padding:4px 7px">›</button><button id="dz-o" style="all:unset;cursor:pointer;padding:4px 7px;border-left:1px solid #fff5">탈락</button><button id="dz-r" style="all:unset;cursor:pointer;padding:4px 7px;border-left:1px solid #fff5">처음</button>';
+  chip.innerHTML = '<button id="dz-p" aria-label="이전 단계" style="all:unset;cursor:pointer;padding:4px 7px">‹</button><span id="dz-l"></span><button id="dz-n" aria-label="다음 단계" style="all:unset;cursor:pointer;padding:4px 7px">›</button><button id="dz-o" style="all:unset;cursor:pointer;padding:4px 7px;border-left:1px solid #fff5">탈락</button><button id="dz-a" style="all:unset;cursor:pointer;padding:4px 7px;border-left:1px solid #fff5">재방문</button><button id="dz-r" style="all:unset;cursor:pointer;padding:4px 7px;border-left:1px solid #fff5">처음</button>';
   document.body.appendChild(chip);
   document.getElementById('dz-p').onclick = () => go(-1);
   document.getElementById('dz-n').onclick = () => go(1);
   document.getElementById('dz-o').onclick = () => renderScreenedOut();
+  document.getElementById('dz-a').onclick = () => renderAlready(); // TEMP(검토용): '이미 참여하셨어요' 바로가기
   document.getElementById('dz-r').onclick = () => (location.href = location.pathname + '?design=1');
   setInterval(() => (document.getElementById('dz-l').textContent = `검토 ${S.stepIdx + 1}/${STEPS.length} ${currentStepId()}`), 300);
 }
