@@ -8,7 +8,7 @@ const params = new URLSearchParams(location.search);
 const MODE = params.get('mode') === 'lab' ? 'lab' : 'online'; // lab = Phase 2(아이트래킹, 연구자 동석)
 const PID = (params.get('pid') || '').trim() || null;
 const STAGE = ['pre', 'exp'].includes(params.get('stage')) && MODE === 'lab' ? params.get('stage') : 'all';
-const APP_VERSION = 'pilot-1.0'; // 자극물 확정본(애니메이션·곡선·눈금·버튼 방식 고정). 바꾸면 버전을 올린다.
+const APP_VERSION = 'pilot-1.1'; // 1.0: 자극물 확정본(애니메이션·곡선·눈금·버튼 방식 고정). 1.1: 사후 문항 중립화·순서 변경, T2 추가, 금융 지식 문항 맨 끝. 바꾸면 버전을 올린다.
 // 개발용 모드(?debug=1, ?design=1)는 로컬 서버이거나 CONFIG.ALLOW_DEV_MODES가 true일 때만 켜진다. 운영 주소에서는 URL을 알아도 열리지 않는다.
 const DEV_OK = ['localhost', '127.0.0.1'].includes(location.hostname) || CONFIG.ALLOW_DEV_MODES === true;
 const DEBUG = DEV_OK && params.get('debug') === '1';
@@ -49,12 +49,16 @@ function stepList() {
   if (STAGE !== 'exp' && MODE === 'online') s.push('screening');
   if (STAGE === 'exp') s.push('labstart');
   if (STAGE !== 'pre') s.push('guide');
-  if (STAGE !== 'exp') Q.PRE_PAGES.forEach((p) => s.push(p.id));
+  // late 쪽(금융 지식)은 사전 설문만 하는 세션(stage=pre)에서는 원래 자리에, 사전·실험을 한 번에 하는 세션에서는 사후 문항 뒤에 둔다.
   if (STAGE === 'pre') {
+    Q.PRE_PAGES.forEach((p) => s.push(p.id));
     s.push('endpre');
     return s;
   }
-  s.push('asset', 'prestim', 'stimulus', 'poststart', ...Q.POST_PAGES.map((p) => p.id), 'end');
+  if (STAGE !== 'exp') Q.PRE_PAGES.filter((p) => !p.late).forEach((p) => s.push(p.id));
+  s.push('asset', 'prestim', 'stimulus', 'poststart', ...Q.POST_PAGES.map((p) => p.id));
+  if (STAGE !== 'exp') Q.PRE_PAGES.filter((p) => p.late).forEach((p) => s.push(p.id));
+  s.push('end');
   return s;
 }
 const STEPS = PREVIEW ? ['asset', 'stimulus', 'endprev'] : stepList();
@@ -128,8 +132,15 @@ const currentStepId = () => STEPS[S.stepIdx];
 // ---------- 단계(phase) 표시 ----------
 const PRE_IDS = new Set(Q.PRE_PAGES.map((p) => p.id));
 const POST_IDS = new Set(Q.POST_PAGES.map((p) => p.id));
+// 자극물 뒤에 묻는 쪽(사후 문항 + 뒤로 옮긴 금융 지식)
+const AFTER_STIM = new Set(STEPS.slice(STEPS.indexOf('stimulus') + 1));
+const SURVEY_STEPS = STEPS.filter((id) => PRE_IDS.has(id) || POST_IDS.has(id));
+const BEFORE_STIM_PRE = SURVEY_STEPS.filter((id) => PRE_IDS.has(id) && !AFTER_STIM.has(id));
+const LAST_PRE = BEFORE_STIM_PRE[BEFORE_STIM_PRE.length - 1] || null; // 이 쪽을 마치면 pre_done
+const LAST_SURVEY = STEPS.includes('end') ? SURVEY_STEPS[SURVEY_STEPS.length - 1] : null; // 이 쪽을 마치면 post_done
 function phaseOf(id) {
   if (id === 'guide') return 'guide';
+  if (AFTER_STIM.has(id) && (PRE_IDS.has(id) || POST_IDS.has(id))) return 'post';
   if (PRE_IDS.has(id) || id === 'asset') return 'pre';
   if (id === 'prestim') return 'view';
   if (id === 'poststart' || POST_IDS.has(id)) return 'post';
@@ -475,9 +486,9 @@ function renderConsent() {
      <div class="consent">
        <p class="cs-intro">모바일 금융 앱 화면을 보고 <b>자산 상태를 어떻게 판단하는지</b> 알아보는 학술 연구입니다.</p>
        <ul class="cs-list">
-         <li><span class="ci">${ICON.clock}</span><div><b>소요 시간</b><p>약 ${CONFIG.TARGET_MAX}분</p></div></li>
+         <li><span class="ci">${ICON.clock}</span><div><b>소요 시간</b><p>약 ${CONFIG.TARGET_MIN}~${CONFIG.TARGET_MAX}분</p></div></li>
          <li><span class="ci">${ICON.lock}</span><div><b>익명 처리</b><p>응답은 연구 목적으로만 쓰이며, 이름 같은 개인 식별 정보는 저장하지 않습니다.</p></div></li>
-         <li><span class="ci">${ICON.coin}</span><div><b>가상 데이터</b><p>입력하신 금액은 화면 구성에만 쓰이고, 실제 금융 정보와 연동되지 않습니다.</p></div></li>
+         <li><span class="ci">${ICON.coin}</span><div><b>가상 데이터</b><p>입력하신 금액으로 가상 화면을 만듭니다. 금액은 익명 응답과 함께 분석에만 쓰이며, 실제 계좌나 금융 정보와 연동되지 않습니다.</p></div></li>
          <li><span class="ci">${ICON.check}</span><div><b>자유로운 중단</b><p>언제든 그만둘 수 있고, 중단해도 불이익이 없습니다.</p></div></li>
          ${lab ? `<li><span class="ci">${ICON.trend}</span><div><b>시선 기록</b><p>시선 추적 장비로 화면을 보는 동안의 시선이 기록됩니다.</p></div></li>` : ''}
        </ul>
@@ -642,10 +653,12 @@ function renderLabStart() {
 function flowCard() {
   const has = (f) => STEPS.some(f);
   const rows = [];
-  if (has((id) => PRE_IDS.has(id))) rows.push(['사전 질문', `기본 정보와 금융 경험 (${Q.PRE_PAGES.length}쪽)`]);
+  const preN = STEPS.filter((id) => PRE_IDS.has(id) && !AFTER_STIM.has(id)).length;
+  const postN = STEPS.filter((id) => AFTER_STIM.has(id) && (PRE_IDS.has(id) || POST_IDS.has(id))).length;
+  if (preN) rows.push(['사전 질문', `기본 정보와 금융 경험 (${preN}쪽)`]);
   if (has((id) => id === 'asset')) rows.push(['금액 입력', '가상 화면에 쓰일 투자 금액']);
   if (has((id) => id === 'stimulus')) rows.push(['화면 보기', '가상의 투자 앱 화면을 둘러봅니다']);
-  if (has((id) => POST_IDS.has(id))) rows.push(['설문', `짧은 설문 (${Q.POST_PAGES.length}쪽) 후 종료`]);
+  if (postN) rows.push(['설문', `짧은 설문 (${postN}쪽) 후 종료`]);
   return `<section class="flowcard" aria-label="진행 순서"><h2>진행 순서</h2><ol>${rows
     .map((r, i) => `<li><span class="fn">${i + 1}</span><b>${esc(r[0])}</b><em>${esc(r[1])}</em></li>`)
     .join('')}</ol></section>`;
@@ -675,7 +688,12 @@ function renderGuide() {
 
 // ---------- 설문 쪽 (사전/사후 공통) ----------
 function renderSurveyPage(page, bucket, { saveAs, doneStatus, back }) {
-  if (!S.orders[page.id]) S.orders[page.id] = (page.shuffle ? shuffle(page.items) : page.items).map((i) => i.id);
+  // fixed 문항은 쪽 맨 앞에 정해진 순서로 두고, 나머지만 섞는다
+  if (!S.orders[page.id]) {
+    const fixed = page.items.filter((i) => i.fixed);
+    const rest = page.items.filter((i) => !i.fixed);
+    S.orders[page.id] = [...fixed, ...(page.shuffle ? shuffle(rest) : rest)].map((i) => i.id);
+  }
   const items = S.orders[page.id].map((id) => page.items.find((i) => i.id === id)).filter((i) => !(MODE === 'lab' && i.id === 'AC1'));
   const isPre = bucket === S.pre;
   runQuestions({
@@ -690,8 +708,8 @@ function renderSurveyPage(page, bucket, { saveAs, doneStatus, back }) {
       Object.assign(bucket, out);
       const payload = { ...bucket, _order: { ...(bucket._order || {}), [page.id]: S.orders[page.id] } };
       bucket._order = payload._order;
-      const lastPre = isPre && page.id === Q.PRE_PAGES[Q.PRE_PAGES.length - 1].id;
-      const lastPost = !isPre && page.id === Q.POST_PAGES[Q.POST_PAGES.length - 1].id;
+      const lastPre = page.id === LAST_PRE || (STAGE === 'pre' && isPre && page.id === Q.PRE_PAGES[Q.PRE_PAGES.length - 1].id);
+      const lastPost = page.id === LAST_SURVEY;
       leaveStep();
       await store.savePart(S.id, saveAs, payload, lastPre ? 'pre_done' : lastPost ? 'post_done' : null);
       if (lastPost) await store.savePart(S.id, 'timing', S.timing, null);
@@ -726,14 +744,15 @@ function renderPreStim() {
 }
 
 function renderPostStart() {
-  const n = Q.POST_PAGES.reduce((a, p) => a + p.items.filter((i) => !(MODE === 'lab' && i.id === 'AC1')).length, 0);
+  const after = STEPS.filter((id) => AFTER_STIM.has(id) && (PRE_IDS.has(id) || POST_IDS.has(id)));
+  const n = after.reduce((a, id) => a + stepWeight(id), 0);
   frame(
     `<div class="eyebrow">화면 보기 완료</div>
      <h1 class="h1">화면 보기가 끝났어요.<br><mark class="hl">이제 설문 단계</mark>입니다</h1>
      <p class="lead">방금 보신 화면을 떠올리며 답해 주세요. 앞 화면으로 돌아가 다시 볼 수는 없어요.</p>
      <section class="flowcard"><ol>
        <li><span class="fn">✓</span><b>화면 보기</b><em>완료</em></li>
-       <li class="cur"><span class="fn">▶</span><b>설문</b><em>${Q.POST_PAGES.length}쪽 · 문항 ${n}개</em></li>
+       <li class="cur"><span class="fn">▶</span><b>설문</b><em>${after.length}쪽 · 문항 ${n}개</em></li>
        <li><span class="fn">·</span><b>종료</b><em>설문을 마치면 끝납니다</em></li>
      </ol></section>
      <p class="note">정답은 없습니다. 떠오르는 대로 솔직하게 답해 주시면 됩니다.</p>
@@ -747,8 +766,8 @@ function renderAsset() {
   const a = S.asset;
   frame(
     `<h1 class="h1">현재 투자 중인 총 자산을<br>입력해 주세요</h1>
-     <p class="note">입력하신 금액은 가상 금융 시뮬레이션을 위해서만 사용됩니다.<br>실제 금융 데이터가 연동되거나 저장되지 않으니 안심하세요.</p>
-     <label class="fld"><span>이름</span><input id="name" class="inp" type="text" maxlength="12" placeholder="이름을 입력해주세요" autocomplete="off" value="${esc(a.name)}"></label>
+     <p class="note">입력하신 금액으로 가상 화면을 만들어요. 금액은 익명 응답과 함께 분석에만 쓰이고, 실제 계좌나 금융 데이터와는 연동되지 않습니다. 이름은 저장하지 않아요.</p>
+     <label class="fld"><span>이름 또는 닉네임</span><input id="name" class="inp" type="text" maxlength="12" placeholder="화면에 부를 이름을 입력해 주세요" autocomplete="off" value="${esc(a.name)}"></label>
      <label class="fld"><span>현재 총 투자 자산</span>
        <div class="inp amt"><input id="amount" type="text" inputmode="numeric" placeholder="0" autocomplete="off" value="${a.amount ? wonPlain(a.amount) : ''}"><em>원</em></div></label>
      <p class="hint" id="amt-hint">${Q.koWon(Q.ASSET_MIN)} 이상 ${Q.koWon(Q.ASSET_MAX)} 이하로 입력해 주세요.</p>
@@ -781,7 +800,7 @@ function renderAsset() {
     const v = read();
     const name = document.getElementById('name').value.trim();
     const interests = [...document.querySelectorAll('.intr input:checked')].map((i) => i.value);
-    if (!name) return toast('이름을 입력해 주세요.');
+    if (!name) return toast('이름 또는 닉네임을 입력해 주세요.');
     if (v < Q.ASSET_MIN || v > Q.ASSET_MAX) {
       hint.classList.add('err');
       return toast('투자 금액 범위를 확인해 주세요.');
@@ -804,9 +823,10 @@ enterStep();
 
 // ---------- 자극물 (화면 3 홈 → 화면 4 자산 현황) ----------
 const NEWS = [
-  ['글로벌', '마켓데일리 · 15분 전', '美 연준, 기준금리 동결 시사... 기술주 일제히 반등'],
+  // 뉴스는 시장 방향(상승·하락)을 암시하지 않는 중립 문구만 쓴다 (낙관·비관 점화 방지, 모든 집단 동일)
+  ['글로벌', '마켓데일리 · 15분 전', '美 연준, 다음 달 통화정책회의 일정 발표... 시장은 결과 주시'],
   ['마이데이터', '머니리포트 · 1시간 전', 'Cashflow, AI 기반 맞춤 포트폴리오 진단 서비스 정식 오픈'],
-  ['배당/채권', '투자뉴스랩 · 3시간 전', '고배당 ETF로 몰리는 투자금... 월배당 상품 인기 지속'],
+  ['배당/채권', '투자뉴스랩 · 3시간 전', '월배당 ETF, 분배금 지급 구조와 세금 정리'],
 ];
 // 선택한 관심 분야에 따라 홈의 '맞춤 추천 상품'이 달라진다. 분기 규칙은 세 집단이 같고(집단은 무작위 배정), 모두 소폭 상승으로 보여 자극물의 수익 방향과 맞춘다.
 const PICK_POOL = {
@@ -1211,7 +1231,7 @@ function loadSaved() {
     return null;
   }
 }
-const STEP_LABEL = (id) => (id === 'guide' ? '안내' : PRE_IDS.has(id) || id === 'asset' ? '사전 질문' : POST_IDS.has(id) || id === 'poststart' ? '설문' : '화면 보기');
+const STEP_LABEL = (id) => (id === 'guide' ? '안내' : phaseOf(id) === 'post' || id === 'poststart' ? '설문' : PRE_IDS.has(id) || id === 'asset' ? '사전 질문' : '화면 보기');
 function renderResume(r) {
   frame(
     `<h1 class="h1">이어서 진행할까요?</h1>
@@ -1263,8 +1283,9 @@ const RENDER = {
   endprev: () => frame(`<h1 class="h1">미리보기 끝</h1><p class="lead">Type ${PREVIEW} 화면을 확인했습니다. 아무것도 저장되지 않았습니다.</p>`, { progress: false }),
   endpre: renderEndPre,
 };
-Q.PRE_PAGES.forEach((p, i) => {
-  RENDER[p.id] = () => renderSurveyPage(p, S.pre, { saveAs: 'pre', back: i > 0 });
+Q.PRE_PAGES.forEach((p) => {
+  // 사전 쪽은 바로 앞이 사전 쪽일 때만 뒤로 갈 수 있다. 자극물 뒤로 옮긴 쪽은 되돌아갈 수 없다.
+  RENDER[p.id] = () => renderSurveyPage(p, S.pre, { saveAs: 'pre', back: !AFTER_STIM.has(p.id) && PRE_IDS.has(STEPS[STEPS.indexOf(p.id) - 1]) });
 });
 Q.POST_PAGES.forEach((p) => {
   RENDER[p.id] = () => renderSurveyPage(p, S.post, { saveAs: 'post', back: false });
