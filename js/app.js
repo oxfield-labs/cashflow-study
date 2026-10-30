@@ -441,7 +441,7 @@ function renderWelcome() {
      </section>`,
     { progress: false }
   );
-  document.getElementById('openext')?.addEventListener('click', () => (location.href = 'kakaotalk://web/openExternal?url=' + encodeURIComponent(location.href)));
+  document.getElementById('openext')?.addEventListener('click', openExternal);
   document.getElementById('welcome-go').addEventListener('click', () => {
     S._welcomed = true;
     renderConsent();
@@ -511,7 +511,7 @@ function renderConsent() {
   });
   const agree = document.getElementById('agree');
   const btn = document.getElementById('next');
-  document.getElementById('openext')?.addEventListener('click', () => (location.href = 'kakaotalk://web/openExternal?url=' + encodeURIComponent(location.href)));
+  document.getElementById('openext')?.addEventListener('click', openExternal);
   if (DESIGN) {
     agree.checked = true;
     btn.disabled = false;
@@ -1258,14 +1258,30 @@ function renderResume(r) {
 addEventListener('pagehide', persist);
 document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && persist());
 
-// 메신저(인앱) 브라우저 안내
-const INAPP = /KAKAOTALK|NAVER\(inapp|Line\/|Instagram|FBAN|FBAV|DaumApps/i.test(navigator.userAgent);
-const IS_KAKAO = /KAKAOTALK/i.test(navigator.userAgent);
+// 메신저(인앱) 브라우저 안내: 짧은 문구 + '브라우저에서 열기' 버튼 하나
+const UA = navigator.userAgent;
+const INAPP = /KAKAOTALK|NAVER\(inapp|Line\/|Instagram|FBAN|FBAV|DaumApps|everytimeApp|BAND\//i.test(UA);
+const IS_KAKAO = /KAKAOTALK/i.test(UA);
+const IS_LINE = /Line\//i.test(UA);
+const IS_ANDROID = /Android/i.test(UA);
+const IS_IOS = /iPhone|iPad|iPod/i.test(UA);
 function inappNotice() {
   if (!INAPP || MODE !== 'online') return '';
-  return `<div class="inapp"><b>메신저 안에서 열려 있어요</b><p>화면을 아래로 내리면 창이 닫힐 수 있어요. 더 안정적으로 진행하려면 기본 브라우저(Safari·Chrome)로 열어 주세요. 닫히더라도 같은 링크를 다시 열면 이어서 할 수 있습니다.</p>${
-    IS_KAKAO ? '<button class="btn ghost" id="openext" type="button">기본 브라우저로 열기</button>' : '<p class="small">오른쪽 위·아래의 메뉴(⋯)에서 ‘다른 브라우저로 열기’를 눌러 주세요.</p>'
-  }</div>`;
+  return `<div class="inapp"><b>메신저 안에서 열려 있어요</b><p>창이 닫히지 않게 브라우저에서 열어 주세요.</p><button class="btn ghost" id="openext" type="button">브라우저에서 열기</button></div>`;
+}
+// 앱마다 외부 브라우저로 여는 방법이 다르다. 열리지 않으면(화면이 그대로면) 링크를 복사해 붙여 넣도록 안내한다.
+function openExternal() {
+  const url = location.href;
+  const u = new URL(url);
+  if (IS_KAKAO) location.href = 'kakaotalk://web/openExternal?url=' + encodeURIComponent(url);
+  else if (IS_LINE) {
+    u.searchParams.set('openExternalBrowser', '1');
+    location.href = u.toString();
+  } else if (IS_ANDROID) location.href = `intent://${u.host}${u.pathname}${u.search}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(url)};end`;
+  else if (IS_IOS) location.href = 'x-safari-' + url; // iOS 17 이상: Safari로 연다
+  setTimeout(() => {
+    if (document.visibilityState === 'visible') copyText(location.origin + location.pathname, '링크를 복사했어요. 브라우저 주소창에 붙여 넣어 주세요.');
+  }, 1500);
 }
 
 // ---------- 라우팅 ----------

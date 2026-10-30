@@ -481,3 +481,7 @@ input.inp{width:100%;font:600 18px var(--font);outline:0}
 .asset-flat .big{font-size:24px;font-weight:700;margin:4px 0 2px;letter-spacing:-.03em}
 .asset-flat .sub{font-size:12.5px}
 .asset-flat .lbl{font-size:12.5px}
+/* v4.2 인앱 안내: 짧은 문구 + 꽉 찬 버튼 */
+.inapp{padding:14px 16px 16px}
+.inapp p{margin:0 0 12px}
+.inapp .btn{width:100%;height:44px;font-size:14.5px;font-weight:700;background:#fff;color:#5c4400;border:1px solid #f1d99a;border-radius:12px}
