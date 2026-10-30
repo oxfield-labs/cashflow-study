@@ -183,6 +183,20 @@ function ringHTML(label) {
 }
 
 // ---------- 화면 골격 ----------
+// 화면/문항이 바뀌면 항상 맨 위부터 보이게 한다 (iOS·인앱 브라우저에서 스크롤 값이 남는 문제 방지)
+try { history.scrollRestoration = 'manual'; } catch (e) {}
+function toTop() {
+  const go = () => {
+    scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    document.querySelectorAll('.shell,.screen').forEach((e) => { e.scrollTop = 0; });
+  };
+  go();
+  requestAnimationFrame(go);
+  setTimeout(go, 80);
+}
+
 function frame(inner, { back = false, progress = true, wide = false } = {}) {
   const total = STEPS.length - 1;
   const p = Math.min(1, S.stepIdx / Math.max(1, total - 1));
@@ -195,7 +209,7 @@ function frame(inner, { back = false, progress = true, wide = false } = {}) {
       </div>
       <main class="screen">${inner}</main>
     </div>`;
-  scrollTo(0, 0);
+  toTop();
 }
 
 const ICON = {
@@ -259,6 +273,7 @@ function runQuestions({ items, bucket, eyebrow, intro, guide, back, lastLabel = 
     hint.hidden = !parts.length;
     backBtn.style.visibility = i === 0 && !back ? 'hidden' : '';
     shownAt = performance.now();
+    toTop();
     if (it.type === 'number') setTimeout(() => qs[i].querySelector('input')?.focus({ preventScroll: true }), 60);
   };
   const advance = async () => {
