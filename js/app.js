@@ -62,8 +62,6 @@ function stepList() {
   return s;
 }
 const STEPS = PREVIEW ? ['asset', 'stimulus', 'endprev'] : stepList();
-// TEMP(검토용): 프로토타입에서만 마지막에 '이미 참여하셨어요' 화면을 붙여 동선을 확인한다. 실제 파일럿에서는 이 줄과 renderAlready 호출을 제거한다.
-if (DESIGN) STEPS.push('already');
 
 // 디자인 검토용 기본값 (DESIGN 모드에서만 사용, 저장되지 않음)
 if (DESIGN) {
@@ -168,7 +166,7 @@ function stepWeight(id) {
   return 1;
 }
 function ringFraction(within = 0) {
-  const body = STEPS.filter((id) => id !== 'end' && id !== 'already'); // 종료·검토용 화면은 제외
+  const body = STEPS.filter((id) => id !== 'end'); // 종료 화면은 제외
   const sum = (arr) => arr.reduce((a, id) => a + stepWeight(id), 0);
   const total = Math.max(1, sum(body));
   return Math.min(1, Math.max(0, (sum(body.slice(0, S.stepIdx)) + within) / total));
@@ -449,18 +447,10 @@ function renderWelcome() {
 }
 
 // ---------- 동의 / 스크리닝 ----------
-// TEMP(중간발표용): '임시 다시 참여하기'는 실제 파일럿 전에 이 버튼과 핸들러를 함께 제거한다.
 function renderAlready() {
   frame(`<h1 class="h1">이미 참여하셨어요</h1><p class="lead">이 브라우저에서 이미 연구에 참여하신 기록이 있습니다. 한 분당 한 번만 참여할 수 있어 중복 참여는 어렵습니다. 감사합니다. 주변에 참여할 수 있는 분이 계시다면 링크를 공유해 주세요.</p>
-    <div class="actions"><div class="actwrap solo"><button class="btn primary" id="copylink" type="button">링크 복사</button>
-      <button class="btn ghost" id="temp-retry" type="button" style="margin-top:8px">임시 다시 참여하기</button></div></div>`, { progress: false });
+    <div class="actions"><div class="actwrap solo"><button class="btn primary" id="copylink" type="button">링크 복사</button></div></div>`, { progress: false });
   document.getElementById('copylink').addEventListener('click', () => copyText(location.origin + location.pathname, '링크를 복사했어요.'));
-  document.getElementById('temp-retry').addEventListener('click', () => {
-    try {
-      ['cfx_participated', 'cfx_screenedout', 'cfx_resume_v1'].forEach((k) => localStorage.removeItem(k));
-    } catch {}
-    location.reload();
-  });
 }
 
 function renderConsent() {
@@ -476,7 +466,7 @@ function renderConsent() {
     return;
   }
   try {
-    if (!DEBUG && !DESIGN && MODE === 'online' && localStorage.getItem('cfx_screenedout')) return renderScreenedOut('restart');
+    if (!DEBUG && !DESIGN && MODE === 'online' && localStorage.getItem('cfx_screenedout')) return renderScreenedOut();
   } catch {}
   const lab = MODE === 'lab';
   if (!S._welcomed) return renderWelcome();
@@ -564,13 +554,13 @@ function renderScreening() {
     try {
       if (!DESIGN) localStorage.setItem('cfx_screenedout', '1'); // 같은 브라우저에서 답을 바꿔 다시 들어오는 것을 막는다
     } catch {}
-    renderScreenedOut('continue');
+    renderScreenedOut();
     await flushEvents();
   }
 }
 
 // 참여 조건에 맞지 않을 때: 개인 평가처럼 들리지 않게 쓰고, 어떤 문항 때문인지는 알리지 않는다. 링크 복사로 주변의 해당자에게 공유를 청한다.
-function renderScreenedOut(tempMode) {
+function renderScreenedOut() {
   frame(
     `<h1 class="h1 center">관심 가져 주셔서<br>감사합니다</h1>
      <div class="consent">
@@ -580,19 +570,10 @@ function renderScreenedOut(tempMode) {
          <li><span class="ci">${ICON.mail}</span><div><b>공유해 주세요</b><p>주변에 해당되는 분이 계시다면 링크를 공유해 주세요.</p></div></li>
        </ul>
      </div>
-     <div class="actions"><div class="actwrap solo"><button class="btn primary" id="copylink">링크 복사</button>
-       <button class="btn ghost" id="temp-skip" type="button" style="margin-top:8px">무시하고 계속 진행하기 (임시)</button></div></div>`,
+     <div class="actions"><div class="actwrap solo"><button class="btn primary" id="copylink">링크 복사</button></div></div>`,
     { progress: false }
   );
   document.getElementById('copylink').addEventListener('click', () => copyText(location.origin + location.pathname, '링크를 복사했어요.'));
-  // TEMP(중간발표용): '무시하고 계속 진행하기'는 실제 파일럿 전에 이 버튼과 아래 핸들러를 함께 제거한다.
-  document.getElementById('temp-skip').addEventListener('click', () => {
-    try {
-      localStorage.removeItem('cfx_screenedout');
-    } catch {}
-    if (tempMode === 'continue') next();
-    else renderConsent();
-  });
 }
 function mailHTML() {
   const m = esc(CONFIG.RESEARCHER_EMAIL);
@@ -932,7 +913,7 @@ function showStatus() {
     `<div class="status ${SHOW_AOI ? 'show-aoi' : ''}">
       <header class="sub-head"><button class="iconbtn" id="sback" aria-label="이전">${ICON.back}</button><h1>내 자산 현황</h1><span></span></header>
       ${assetCard(st, { flat: true })}
-      <section class="chart-card" id="chart-card" data-aoi="chart">${DESIGN ? `<span class="typetag">Type ${st.group} · 탭하여 전환</span>` : ''}${chart.svg}</section>
+      <section class="chart-card" id="chart-card" data-aoi="chart">${chart.svg}</section>
       <div class="tabs" role="tablist">${['1D', '1W', '1M', '6M', '1Y', 'ALL']
         .map((t) => `<button class="tab ${t === '6M' ? 'on' : ''}" data-tab="${t}" ${t === '6M' ? 'aria-selected="true"' : ''}>${t}</button>`)
         .join('')}</div>
@@ -970,14 +951,6 @@ function showStatus() {
       log('detail_toggle', { month: b.dataset.det, open: !body.hidden });
     })
   );
-  // TEMP(검토용): 프로토타입에서만 차트를 탭하면 A→B→C로 바뀐다. 실제 파일럿에서는 이 블록과 .typetag를 제거한다.
-  if (DESIGN)
-    document.getElementById('chart-card').addEventListener('click', () => {
-      const g = { A: 'B', B: 'C', C: 'A' }[S.group];
-      S.group = g;
-      S.stim = buildStimulus(g, S.asset.amount, new Date(), CONFIG.END_MONTH);
-      showStatus();
-    });
   attachStimLogging();
   measureAOI(chart.geometry);
   startChartClock(need);
@@ -1295,7 +1268,6 @@ const RENDER = {
   stimulus: renderStimulus,
   poststart: renderPostStart,
   end: renderEnd,
-  already: renderAlready, // TEMP(검토용)
   endprev: () => frame(`<h1 class="h1">미리보기 끝</h1><p class="lead">Type ${PREVIEW} 화면을 확인했습니다. 아무것도 저장되지 않았습니다.</p>`, { progress: false }),
   endpre: renderEndPre,
 };
@@ -1329,12 +1301,11 @@ if (DESIGN) {
   // 검토용 이동 칩: 단계 사이를 오가며 동선을 확인한다 (참가자 화면에는 나타나지 않음)
   const chip = document.createElement('div');
   chip.style.cssText = 'position:fixed;top:-2px;left:50%;transform:translateX(-50%);z-index:99;opacity:.92;white-space:nowrap;width:max-content;scale:.78;display:flex;gap:4px;align-items:center;background:rgba(17,24,39,.82);color:#fff;border-radius:999px;padding:3px 6px;font:600 11px/1 system-ui,sans-serif';
-  chip.innerHTML = '<button id="dz-p" aria-label="이전 단계" style="all:unset;cursor:pointer;padding:4px 7px">‹</button><span id="dz-l"></span><button id="dz-n" aria-label="다음 단계" style="all:unset;cursor:pointer;padding:4px 7px">›</button><button id="dz-o" style="all:unset;cursor:pointer;padding:4px 7px;border-left:1px solid #fff5">탈락</button><button id="dz-a" style="all:unset;cursor:pointer;padding:4px 7px;border-left:1px solid #fff5">재방문</button><button id="dz-r" style="all:unset;cursor:pointer;padding:4px 7px;border-left:1px solid #fff5">처음</button>';
+  chip.innerHTML = '<button id="dz-p" aria-label="이전 단계" style="all:unset;cursor:pointer;padding:4px 7px">‹</button><span id="dz-l"></span><button id="dz-n" aria-label="다음 단계" style="all:unset;cursor:pointer;padding:4px 7px">›</button><button id="dz-o" style="all:unset;cursor:pointer;padding:4px 7px;border-left:1px solid #fff5">탈락</button><button id="dz-r" style="all:unset;cursor:pointer;padding:4px 7px;border-left:1px solid #fff5">처음</button>';
   document.body.appendChild(chip);
   document.getElementById('dz-p').onclick = () => go(-1);
   document.getElementById('dz-n').onclick = () => go(1);
   document.getElementById('dz-o').onclick = () => renderScreenedOut();
-  document.getElementById('dz-a').onclick = () => renderAlready(); // TEMP(검토용): '이미 참여하셨어요' 바로가기
   document.getElementById('dz-r').onclick = () => (location.href = location.pathname + '?design=1');
   setInterval(() => (document.getElementById('dz-l').textContent = `검토 ${S.stepIdx + 1}/${STEPS.length} ${currentStepId()}`), 300);
 }
