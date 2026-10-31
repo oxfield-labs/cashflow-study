@@ -445,6 +445,7 @@ function renderWelcome() {
        <p class="wl-sub">${lab ? '연구자와 함께 진행하는 현장 참여입니다.' : '모바일 금융 앱 화면을 보고 느끼는 점을 알아보는 연구예요.'}</p>
        ${inappNotice()}
        <ul class="wl-facts">
+         ${closeWhenText() ? `<li class="wl-pilot"><span>${ICON.trend}</span><div>파일럿 테스트 기간<small>${esc(closeWhenText())}까지</small></div></li>` : ''}
          <li><span>${ICON.clock}</span>약 ${CONFIG.TARGET_MIN}~${CONFIG.TARGET_MAX}분이면 끝나요</li>
          <li><span>${ICON.lock}</span>응답은 익명으로만 사용돼요</li>
          <li><span>${ICON.check}</span>언제든 그만두실 수 있어요</li>
@@ -1327,6 +1328,13 @@ if (DESIGN) {
 // ---------- 파일럿 접수 마감 ----------
 // CONFIG.CLOSE_AT 이후에 접속하면 안내 화면만 보여 주고 진행을 막는다. (본 실험 때는 CLOSE_AT을 ''로 비운다)
 // 기준 시각은 참가자 기기 시계가 아니라 서버 응답의 Date 헤더를 우선 쓴다. 헤더를 못 읽으면 기기 시계로 대신한다.
+function closeWhenText() {
+  if (!CONFIG.CLOSE_AT) return '';
+  const d = new Date(CONFIG.CLOSE_AT);
+  if (isNaN(d)) return '';
+  const w = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric', weekday: 'short', hour: 'numeric', minute: '2-digit', hour12: true }).format(d);
+  return w.replace(/(\d+):00/, '$1시');
+}
 async function isClosed() {
   if (!CONFIG.CLOSE_AT || DESIGN || DEBUG || PREVIEW) return false;
   const close = Date.parse(CONFIG.CLOSE_AT);
