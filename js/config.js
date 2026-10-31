@@ -7,8 +7,8 @@ export const CONFIG = {
 
   STUDY_TITLE: '모바일 금융 앱 화면 인식 연구',
   APP_NAME: 'Cashflow',
-  RESEARCHER_CONTACT: 'Jung Eun Ock', // 동의서·디브리핑에 표시
-  IRB_NUMBER: '심의 진행 중 (파일럿)', // 심의 후 입력
+  IRB_NUMBER: '심의 준비 중', // 심의(또는 면제) 확인 후 번호로 교체
+  PILOT_NOTICE: '이 설문은 시스템과 문항을 점검하는 파일럿입니다. 이번 응답은 실제 연구 자료로 활용되지 않습니다.', // 본 실험 때는 빈 문자열('')로 바꾸면 동의 화면에서 사라진다
   RESEARCHER_EMAIL: 'oooks83@gmail.com', // 철회 요청 메일 주소 (종료 화면의 '이메일로 철회 요청' 버튼)
   WITHDRAW_DEADLINE: '자료 분석이 시작되기 전', // 이 날짜 이후에는 분석이 시작되어 철회가 어렵다
   TARGET_DESC: '만 19~39세, 최근 금융 앱을 이용해 보신 분', // 참여 조건 탈락 화면에 쓰는 대상 안내 (일반적 범위만. 어떤 문항 때문인지는 알리지 않는다)

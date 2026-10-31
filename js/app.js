@@ -8,7 +8,7 @@ const params = new URLSearchParams(location.search);
 const MODE = params.get('mode') === 'lab' ? 'lab' : 'online'; // lab = Phase 2(아이트래킹, 연구자 동석)
 const PID = (params.get('pid') || '').trim() || null;
 const STAGE = ['pre', 'exp'].includes(params.get('stage')) && MODE === 'lab' ? params.get('stage') : 'all';
-const APP_VERSION = 'pilot-1.1'; // 1.0: 자극물 확정본(애니메이션·곡선·눈금·버튼 방식 고정). 1.1: 사후 문항 중립화·순서 변경, T2 추가, 금융 지식 문항 맨 끝. 바꾸면 버전을 올린다.
+const APP_VERSION = 'pilot-1.2'; // 1.0: 자극물 확정본(애니메이션·곡선·눈금·버튼 방식 고정). 1.1: 사후 문항 중립화·순서 변경, T2 추가, 금융 지식 문항 맨 끝. 바꾸면 버전을 올린다.
 // 개발용 모드(?debug=1, ?design=1)는 로컬 서버이거나 CONFIG.ALLOW_DEV_MODES가 true일 때만 켜진다. 운영 주소에서는 URL을 알아도 열리지 않는다.
 const DEV_OK = ['localhost', '127.0.0.1'].includes(location.hostname) || CONFIG.ALLOW_DEV_MODES === true;
 const DEBUG = DEV_OK && params.get('debug') === '1';
@@ -491,6 +491,7 @@ function renderConsent() {
      <div class="consent">
        <p class="cs-intro">모바일 금융 앱 화면을 보고 <b>자산 상태를 어떻게 판단하는지</b> 알아보는 학술 연구입니다.</p>
        <ul class="cs-list">
+         ${CONFIG.PILOT_NOTICE ? `<li><span class="ci">${ICON.alert || ICON.check}</span><div><b>파일럿 안내</b><p>${esc(CONFIG.PILOT_NOTICE)}</p></div></li>` : ''}
          <li><span class="ci">${ICON.clock}</span><div><b>소요 시간</b><p>약 ${CONFIG.TARGET_MIN}~${CONFIG.TARGET_MAX}분</p></div></li>
          <li><span class="ci">${ICON.lock}</span><div><b>익명 처리</b><p>응답은 연구 목적으로만 쓰이며, 이름 같은 개인 식별 정보는 저장하지 않습니다.</p></div></li>
          <li><span class="ci">${ICON.coin}</span><div><b>가상 데이터</b><p>입력하신 금액으로 가상 화면을 만듭니다. 금액은 익명 응답과 함께 분석에만 쓰이며, 실제 계좌나 금융 정보와 연동되지 않습니다.</p></div></li>
@@ -498,7 +499,6 @@ function renderConsent() {
          ${lab ? `<li><span class="ci">${ICON.trend}</span><div><b>시선 기록</b><p>시선 추적 장비로 화면을 보는 동안의 시선이 기록됩니다.</p></div></li>` : ''}
        </ul>
        <dl class="rinfo">
-         <dt>연구자</dt><dd>${esc(CONFIG.RESEARCHER_CONTACT)}</dd>
          <dt>연락처</dt><dd>${mailHTML()}</dd>
          <dt>생명윤리위원회 심의</dt><dd>${esc(CONFIG.IRB_NUMBER)}</dd>
        </dl>
@@ -595,7 +595,7 @@ function mailHTML() {
   return `<a class="mail-link" href="mailto:${m}">${ICON.mail}<span>${m}</span></a>`;
 }
 function contactHTML() {
-  return `${esc(CONFIG.RESEARCHER_CONTACT)} ${mailHTML()}`;
+  return mailHTML();
 }
 
 async function copyText(text, msg) {
