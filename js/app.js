@@ -1324,6 +1324,40 @@ if (DESIGN) {
   document.getElementById('dz-r').onclick = () => (location.href = location.pathname + '?design=1');
   setInterval(() => (document.getElementById('dz-l').textContent = `검토 ${S.stepIdx + 1}/${STEPS.length} ${currentStepId()}`), 300);
 }
+// ---------- 파일럿 접수 마감 ----------
+// CONFIG.CLOSE_AT 이후에 접속하면 안내 화면만 보여 주고 진행을 막는다. (본 실험 때는 CLOSE_AT을 ''로 비운다)
+// 기준 시각은 참가자 기기 시계가 아니라 서버 응답의 Date 헤더를 우선 쓴다. 헤더를 못 읽으면 기기 시계로 대신한다.
+async function isClosed() {
+  if (!CONFIG.CLOSE_AT || DESIGN || DEBUG || PREVIEW) return false;
+  const close = Date.parse(CONFIG.CLOSE_AT);
+  if (!Number.isFinite(close)) return false;
+  if (DEV_OK && params.get('now')) {
+    const t = Date.parse(params.get('now')); // 시험용: ?now=2026-11-03T19:01:00+09:00 (로컬 서버에서만)
+    if (Number.isFinite(t)) return t >= close;
+  }
+  let now = Date.now();
+  try {
+    const r = await fetch(location.pathname, { method: 'HEAD', cache: 'no-store' });
+    const d = Date.parse(r.headers.get('date'));
+    if (Number.isFinite(d)) now = d;
+  } catch {}
+  return now >= close;
+}
+function renderClosed() {
+  const d = new Date(CONFIG.CLOSE_AT);
+  const when = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric', weekday: 'short', hour: 'numeric', minute: '2-digit', hour12: true }).format(d);
+  const when2 = when.replace(/(\d+):00/, '$1시');
+  frame(
+    `<h1 class="h1">파일럿 테스트가<br>종료되었습니다</h1>
+     <p class="lead">참여에 관심을 가져 주셔서 감사합니다. 이번 파일럿 테스트는 <b>${esc(when2)}</b>에 마감되었습니다.</p>
+     <p class="lead">본 테스트가 시작되면 다시 안내드리겠습니다.</p>`,
+    { progress: false }
+  );
+}
+
 const SAVED = loadSaved();
-if (SAVED) renderResume(SAVED);
-else enterStep();
+isClosed().then((closed) => {
+  if (closed) return renderClosed();
+  if (SAVED) renderResume(SAVED);
+  else enterStep();
+});
