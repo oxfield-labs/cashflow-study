@@ -1344,8 +1344,15 @@ async function isClosed() {
     if (Number.isFinite(t)) return t >= close;
   }
   let now = Date.now();
+  // 서버 시각 조회는 최대 1.5초만 기다린다. (미리보기 등 외부 요청이 막힌 환경에서 멈춰 있지 않도록 기기 시계로 넘어간다)
   try {
-    const r = await fetch(location.pathname, { method: 'HEAD', cache: 'no-store' });
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 1500);
+    const r = await Promise.race([
+      fetch(location.pathname, { method: 'HEAD', cache: 'no-store', signal: ctl.signal }),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 1600)),
+    ]);
+    clearTimeout(timer);
     const d = Date.parse(r.headers.get('date'));
     if (Number.isFinite(d)) now = d;
   } catch {}
