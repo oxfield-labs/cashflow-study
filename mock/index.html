@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>[목업] 모바일 금융 앱 화면 인식 연구</title>
+<style>
+:root{--bg:#e9ecf1;--card:#fff;--fg:#14181f;--mute:#5d6676;--line:#dfe3ea;--accent:#1f5eff;--on:#fff;--warn:#fff4d6;--warnfg:#6b4a00}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font:14px/1.5 -apple-system,"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif}
+#stage{height:100%;display:flex;justify-content:center;align-items:center}
+#stage iframe{border:0;background:#fff;display:block;width:100%;height:100%}
+#stage.fixed iframe{border-radius:20px;box-shadow:0 8px 40px rgba(0,0,0,.25);height:min(100%,var(--h))}
+#badge{position:fixed;left:0;right:0;top:0;z-index:20;background:var(--warn);color:var(--warnfg);font-size:11.5px;text-align:center;padding:3px 8px;padding-top:max(3px,env(safe-area-inset-top,0px));pointer-events:none}
+#fab{position:fixed;right:max(14px,env(safe-area-inset-right,0px));bottom:max(18px,env(safe-area-inset-bottom,0px));z-index:30;width:52px;height:52px;border-radius:50%;border:0;background:#14181f;color:#fff;font-size:22px;box-shadow:0 4px 16px rgba(0,0,0,.35);cursor:pointer}
+#panel{position:fixed;z-index:40;right:0;bottom:0;width:min(100%,380px);max-height:86%;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:16px 16px 0 0;box-shadow:0 -6px 30px rgba(0,0,0,.25);padding:14px 16px max(16px,env(safe-area-inset-bottom,0px));display:none}
+@media(min-width:600px){#panel{right:14px;bottom:80px;border-radius:14px;max-height:calc(100% - 100px)}}
+#panel.open{display:block}
+#panel h2{font-size:15px;margin:0 0 2px}
+.row{margin-top:14px}
+.lab{display:block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);font-weight:600;margin-bottom:6px}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+button.c,select{font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 10px;min-height:34px;cursor:pointer}
+button.c[aria-pressed="true"]{background:var(--accent);color:var(--on);border-color:var(--accent)}
+button.c:disabled{opacity:.4;cursor:not-allowed}
+select{width:100%}
+.hint{font-size:12px;color:var(--mute);margin-top:6px}
+table{border-collapse:collapse;width:100%;font-size:12.5px}
+td{padding:4px 0;border-bottom:1px solid var(--line);vertical-align:top}
+td:first-child{color:var(--mute);width:42%;padding-right:8px}
+.x{position:absolute;right:10px;top:8px;border:0;background:none;font-size:20px;cursor:pointer;color:var(--mute)}
+</style>
+</head>
+<body>
+<div id="badge">목업 · 응답은 저장·전송되지 않습니다</div>
+<div id="stage"></div>
+<button id="fab" aria-label="목업 설정 열기">⚙</button>
+<div id="panel" role="dialog" aria-label="목업 설정">
+  <button class="x" id="close" aria-label="닫기">×</button>
+  <h2>목업 설정</h2>
+  <div class="hint">실험 앱과 같은 코드를 씁니다. 문구·문항·화면이 바뀌면 여기에도 그대로 반영됩니다.</div>
+
+  <div class="row"><span class="lab">자극물 유형</span>
+    <div class="seg" id="g"><button class="c" data-v="A">A</button><button class="c" data-v="B">B</button><button class="c" data-v="C">C</button></div>
+    <div class="hint" id="ghint"></div></div>
+
+  <div class="row"><span class="lab">보기 방식</span>
+    <div class="seg" id="m">
+      <button class="c" data-v="design">전체 흐름 검토</button>
+      <button class="c" data-v="real">직접 입력</button>
+      <button class="c" data-v="preview">자극물만</button></div>
+    <div class="hint" id="mhint"></div></div>
+
+  <div class="row" id="stepbox"><label class="lab" for="step">화면 이동 (전체 흐름 검토)</label><select id="step"></select>
+    <div class="seg" style="margin-top:6px"><button class="c" id="prev">‹ 이전</button><button class="c" id="nextb">다음 ›</button></div></div>
+
+  <div class="row" id="ibox"><label class="lab" for="int">홈 추천 분야 (전체 흐름 검토)</label>
+    <select id="int"><option value="overseas">해외 주식</option><option value="domestic">국내 주식</option><option value="alt">대체 자산</option><option value="overseas,domestic,alt">전체</option></select></div>
+
+  <div class="row"><span class="lab">엣지 케이스</span>
+    <div class="seg">
+      <button class="c" data-e="screenout">참여 조건 탈락</button>
+      <button class="c" data-e="after" id="e-after">마감 이후</button>
+      <button class="c" data-e="before" id="e-before">마감 직전(정상)</button>
+      <button class="c" data-e="kakao">카카오톡 인앱</button>
+      <button class="c" data-e="labpre">현장모드: 사전만</button>
+      <button class="c" data-e="labexp">현장모드: 실험만</button></div>
+    <div class="hint" id="ehint">입력 오류·금액 극단값·나이 17/40·S2/S3 ‘아니오’·S4 ‘예’는 ‘직접 입력’에서 직접 넣어 보세요.</div></div>
+
+  <div class="row" id="szbox"><span class="lab">화면 크기 (넓은 화면에서)</span>
+    <div class="seg" id="sz"><button class="c" data-v="390x844">보통 폰</button><button class="c" data-v="320x568">작은 폰</button><button class="c" data-v="full">꽉 채움</button></div></div>
+
+  <div class="row"><button class="c" id="reload" style="width:100%">처음부터 다시 열기</button></div>
+
+  <div class="row"><span class="lab">연구 구조 (비용 산정용)</span>
+    <table id="info"></table>
+    <div class="hint">문항 수·설정값은 실험 코드에서 직접 읽어 옵니다.</div></div>
+</div>
+
+<script type="module">
+import { CONFIG } from '../js/config.js';
+import * as Q from '../js/questions.js';
+import { GROUPS } from '../js/stimulus.js';
+
+const $ = (s) => document.querySelector(s);
+const url = new URL(location.href);
+const st = {
+  g: ['A', 'B', 'C'].includes(url.searchParams.get('g')) ? url.searchParams.get('g') : 'C',
+  m: ['design', 'real', 'preview'].includes(url.searchParams.get('m')) ? url.searchParams.get('m') : 'design',
+  e: url.searchParams.get('e') || '',
+  sz: url.searchParams.get('sz') || '390x844',
+  i: url.searchParams.get('i') || 'overseas',
+};
+const hints = {
+  design: '모든 문항이 채워진 상태로 처음부터 끝까지 넘겨 봅니다. 화면 이동으로 원하는 단계에 바로 갑니다.',
+  real: '실제 참여자와 같은 흐름입니다. 직접 답하며 입력 오류·탈락을 확인하세요.',
+  preview: '선택한 유형의 자극물(홈·자산 현황)만 봅니다.',
+};
+const closeOK = !!CONFIG.CLOSE_AT;
+if (!closeOK) { $('#e-after').disabled = true; $('#e-before').disabled = true; if (['after', 'before'].includes(st.e)) st.e = ''; }
+
+function qs() {
+  const p = new URLSearchParams();
+  p.set('g', st.g);
+  if (st.e === 'screenout') p.set('design', '1');
+  else if (st.e === 'after' || st.e === 'before') p.set('now', st.e);
+  else if (st.e === 'kakao') p.set('ua', 'kakao');
+  else if (st.e === 'labpre') { p.set('mode', 'lab'); p.set('pid', 'MOCK01'); p.set('stage', 'pre'); }
+  else if (st.e === 'labexp') { p.set('mode', 'lab'); p.set('pid', 'MOCK01'); p.set('stage', 'exp'); }
+  else if (st.m === 'design') { p.set('design', '1'); p.set('i', st.i); }
+  else if (st.m === 'preview') p.set('preview', st.g);
+  return p.toString();
+}
+function keepUrl() {
+  const p = new URLSearchParams({ g: st.g, m: st.m, sz: st.sz, i: st.i });
+  if (st.e) p.set('e', st.e);
+  try { history.replaceState(null, '', location.pathname + '?' + p); } catch {}
+}
+function cfx() { const f = $('#stage iframe'); try { return f && f.contentWindow && f.contentWindow.__cfx; } catch { return null; } }
+function fillSteps(c) {
+  const s = $('#step'); s.innerHTML = '';
+  if (!c) return;
+  c.STEPS.forEach((id, i) => { const o = document.createElement('option'); o.value = i; o.textContent = (i + 1) + '. ' + id; s.appendChild(o); });
+}
+function load() {
+  keepUrl();
+  const stage = $('#stage');
+  const [w, h] = st.sz === 'full' ? [0, 0] : st.sz.split('x').map(Number);
+  const wide = innerWidth >= 700 && w;
+  stage.className = wide ? 'fixed' : '';
+  stage.innerHTML = '';
+  const f = document.createElement('iframe');
+  f.title = '실험 화면 목업';
+  if (wide) { f.style.width = w + 'px'; f.style.setProperty('--h', h + 'px'); stage.style.setProperty('--h', h + 'px'); f.style.maxWidth = '100%'; }
+  f.src = 'app.html?' + qs();
+  stage.appendChild(f);
+  f.addEventListener('load', () => {
+    let n = 0;
+    const t = setInterval(() => { n++; const c = cfx(); if (c || n > 30) { clearInterval(t); fillSteps(c); } }, 150);
+    if (st.e === 'screenout') setTimeout(() => { try { f.contentDocument.getElementById('dz-o').click(); } catch {} }, 700);
+  });
+  const design = st.m === 'design' && !st.e;
+  $('#stepbox').style.display = design || st.e === 'screenout' ? '' : 'none';
+  $('#ibox').style.display = design ? '' : 'none';
+  $('#mhint').textContent = st.e ? '엣지 케이스를 보는 중입니다. 위 ‘보기 방식’을 누르면 일반 보기로 돌아갑니다.' : hints[st.m];
+  $('#szbox').style.display = innerWidth >= 700 ? '' : 'none';
+  sync();
+}
+function sync() {
+  document.querySelectorAll('#g button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === st.g));
+  document.querySelectorAll('#m button').forEach((b) => b.setAttribute('aria-pressed', !st.e && b.dataset.v === st.m));
+  document.querySelectorAll('[data-e]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.e === st.e));
+  document.querySelectorAll('#sz button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === st.sz));
+  $('#int').value = st.i;
+  const g = GROUPS[st.g];
+  $('#ghint').textContent = `Y축 ${g.lo}~${g.hi} (입력 금액의 배수), 화면 점유율 ${Math.round(g.occupancy * 100)}%. 세 유형 모두 실제 수익률은 같습니다.`;
+}
+$('#g').onclick = (e) => { const b = e.target.closest('button'); if (b) { st.g = b.dataset.v; load(); } };
+$('#m').onclick = (e) => { const b = e.target.closest('button'); if (b) { st.m = b.dataset.v; st.e = ''; load(); } };
+$('#sz').onclick = (e) => { const b = e.target.closest('button'); if (b) { st.sz = b.dataset.v; load(); } };
+document.querySelectorAll('[data-e]').forEach((b) => (b.onclick = () => { st.e = b.dataset.e; load(); }));
+$('#int').onchange = (e) => { st.i = e.target.value; load(); };
+$('#reload').onclick = load;
+$('#step').onchange = (e) => { const c = cfx(); if (c) { c.S.stepIdx = +e.target.value; c.go(0); } };
+$('#prev').onclick = () => { const c = cfx(); if (c) { c.go(-1); $('#step').value = c.S.stepIdx; } };
+$('#nextb').onclick = () => { const c = cfx(); if (c) { c.go(1); $('#step').value = c.S.stepIdx; } };
+$('#fab').onclick = () => $('#panel').classList.toggle('open');
+$('#close').onclick = () => $('#panel').classList.remove('open');
+
+// 연구 구조 요약: 실험 코드에서 직접 센다 (문항을 바꾸면 자동으로 따라온다)
+const cnt = (pages) => pages.reduce((n, p) => n + p.items.length, 0);
+const pre = Q.PRE_PAGES.filter((p) => !p.late), late = Q.PRE_PAGES.filter((p) => p.late);
+const total = Q.SCREENING.length + cnt(Q.PRE_PAGES) + cnt(Q.POST_PAGES);
+const when = CONFIG.CLOSE_AT ? new Date(CONFIG.CLOSE_AT).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', dateStyle: 'medium', timeStyle: 'short' }) : '미설정 (본 실험 전 확정)';
+const rows = [
+  ['설문 방식', '모바일 웹 링크 1회 참여, 응답자 1명에 자극물 화면 1개'],
+  ['집단', '3개(A·B·C), 앱이 무작위 배정'],
+  ['참여 조건', Q.SCREENING.length + '문항으로 확인 (' + (CONFIG.TARGET_DESC || '') + ')'],
+  ['전체 문항', total + '개 (조건 확인 ' + Q.SCREENING.length + ' · 사전 ' + cnt(pre) + ' · 사후 ' + cnt(Q.POST_PAGES) + ' · 마지막 ' + cnt(late) + ')'],
+  ['예상 소요', CONFIG.TARGET_MIN + '~' + CONFIG.TARGET_MAX + '분 (안내문 기준)'],
+  ['자극물 노출', '최소 ' + CONFIG.MIN_EXPOSURE_SEC + '초 후 다음 버튼 활성'],
+  ['접수 마감', when],
+  ['승인번호 표시', CONFIG.IRB_NUMBER || '미설정'],
+  ['파일럿 안내문', CONFIG.PILOT_NOTICE ? '표시 중 (파일럿)' : '없음 (본 실험)'],
+  ['기기', '스마트폰 기준 화면'],
+];
+$('#info').innerHTML = rows.map((r) => '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td></tr>').join('');
+load();
+</script>
+</body>
+</html>

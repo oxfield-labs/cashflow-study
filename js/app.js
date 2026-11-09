@@ -5,17 +5,27 @@ import { buildStimulus, chartSVG, won, wonPlain, pct } from './stimulus.js';
 
 // ---------- URL 파라미터 ----------
 const params = new URLSearchParams(location.search);
+// ---------- 목업 모드 ----------
+// /mock/app.html 이 이 파일을 불러오면서 window.__MOCK = true 를 먼저 켠다. 운영 주소(index.html)에는 이 값이 없으므로 아래 분기는 전부 꺼져 있다.
+// 목업은 같은 코드·같은 문구·같은 설정(CONFIG)을 쓰고 다음만 다르다: 서버·브라우저 저장소에 아무것도 쓰지 않고(메모리만), 개발용 옵션을 열고, 접수 마감을 무시한다.
+const MOCK = window.__MOCK === true;
+const LS = MOCK
+  ? (() => {
+      const m = new Map();
+      return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => void m.set(k, String(v)), removeItem: (k) => void m.delete(k) };
+    })()
+  : localStorage;
 const MODE = params.get('mode') === 'lab' ? 'lab' : 'online'; // lab = Phase 2(아이트래킹, 연구자 동석)
 const PID = (params.get('pid') || '').trim() || null;
 const STAGE = ['pre', 'exp'].includes(params.get('stage')) && MODE === 'lab' ? params.get('stage') : 'all';
-const APP_VERSION = 'pilot-1.2'; // 1.0: 자극물 확정본(애니메이션·곡선·눈금·버튼 방식 고정). 1.1: 사후 문항 중립화·순서 변경, T2 추가, 금융 지식 문항 맨 끝. 바꾸면 버전을 올린다.
+const APP_VERSION = 'v2.0'; // v2.0(파일럿 이후): P2 분리·P4·P5 추가, C3·T1·T2·V2·E2·B1·S4 문구 수정, U1·K5 삭제. pilot-1.2 이전 기록: 1.0: 자극물 확정본(애니메이션·곡선·눈금·버튼 방식 고정). 1.1: 사후 문항 중립화·순서 변경, T2 추가, 금융 지식 문항 맨 끝. 바꾸면 버전을 올린다.
 // 개발용 모드(?debug=1, ?design=1)는 로컬 서버이거나 CONFIG.ALLOW_DEV_MODES가 true일 때만 켜진다. 운영 주소에서는 URL을 알아도 열리지 않는다.
-const DEV_OK = ['localhost', '127.0.0.1'].includes(location.hostname) || CONFIG.ALLOW_DEV_MODES === true;
+const DEV_OK = ['localhost', '127.0.0.1'].includes(location.hostname) || CONFIG.ALLOW_DEV_MODES === true || MOCK;
 const DEBUG = DEV_OK && params.get('debug') === '1';
 // ?design=1 : 디자인 검토용. 모든 값이 채워진 상태로 처음부터 끝까지 같은 흐름을 눌러 볼 수 있다. C형 화면 고정, 저장·이어하기 없음.
 const DESIGN = DEV_OK && params.get('design') === '1';
 const SHOW_AOI = params.get('aoi') === '1';
-const FORCE_GROUP = (MODE === 'lab' || DEBUG) && ['A', 'B', 'C'].includes(params.get('g')) ? params.get('g') : null;
+const FORCE_GROUP = (MODE === 'lab' || DEBUG || MOCK) && ['A', 'B', 'C'].includes(params.get('g')) ? params.get('g') : null;
 const MIN_EXPOSURE = (DEBUG || DESIGN) && params.get('min') !== null ? Number(params.get('min')) : DESIGN ? 6 : CONFIG.MIN_EXPOSURE_SEC;
 
 // 미리보기: ?preview=A|B|C 로 열면 해당 자극물만 보여 주고 아무것도 저장하지 않는다 (디자인 확인, 아이트래커 보정용)
@@ -23,7 +33,8 @@ const PREVIEW = ['A', 'B', 'C'].includes(params.get('preview')) ? params.get('pr
 const nullStore = { kind: 'null', startSession: async () => ({ id: 'preview', group: PREVIEW || 'C' }), savePart: async () => true, logEvents: async () => true, flush: async () => {} };
 // ?local=1 : 서버(Supabase)에 아무것도 보내지 않는 리허설 모드. 로컬에서 문구·화면을 고치며 시험할 때 운영 DB에 시험 데이터가 쌓이지 않도록 쓴다.
 const FORCE_LOCAL = params.get('local') === '1';
-const store = PREVIEW || DESIGN ? nullStore : createStorage(FORCE_LOCAL ? { ...CONFIG, SUPABASE_URL: '', SUPABASE_ANON_KEY: '' } : CONFIG);
+const mockStore = { kind: 'null', startSession: async () => ({ id: 'mock', group: FORCE_GROUP || ['A', 'B', 'C'][Math.floor(Math.random() * 3)] }), savePart: async () => true, logEvents: async () => true, flush: async () => {} };
+const store = MOCK ? mockStore : PREVIEW || DESIGN ? nullStore : createStorage(FORCE_LOCAL ? { ...CONFIG, SUPABASE_URL: '', SUPABASE_ANON_KEY: '' } : CONFIG);
 const root = document.getElementById('app');
 
 // ---------- 상태 ----------
@@ -472,7 +483,7 @@ function renderAlready() {
 function renderConsent() {
   const done = (() => {
     try {
-      return !!localStorage.getItem('cfx_participated');
+      return !!LS.getItem('cfx_participated');
     } catch {
       return false;
     }
@@ -482,7 +493,7 @@ function renderConsent() {
     return;
   }
   try {
-    if (!DEBUG && !DESIGN && MODE === 'online' && localStorage.getItem('cfx_screenedout')) return renderScreenedOut();
+    if (!DEBUG && !DESIGN && MODE === 'online' && LS.getItem('cfx_screenedout')) return renderScreenedOut();
   } catch {}
   const lab = MODE === 'lab';
   if (!S._welcomed) return renderWelcome();
@@ -568,7 +579,7 @@ function renderScreening() {
     clearSaved();
     leaveStep();
     try {
-      if (!DESIGN) localStorage.setItem('cfx_screenedout', '1'); // 같은 브라우저에서 답을 바꿔 다시 들어오는 것을 막는다
+      if (!DESIGN) LS.setItem('cfx_screenedout', '1'); // 같은 브라우저에서 답을 바꿔 다시 들어오는 것을 막는다
     } catch {}
     renderScreenedOut();
     await flushEvents();
@@ -1167,7 +1178,7 @@ async function renderEnd() {
   await flushEvents();
   await store.flush();
   try {
-    if (!DESIGN) localStorage.setItem('cfx_participated', new Date().toISOString());
+    if (!DESIGN) LS.setItem('cfx_participated', new Date().toISOString());
   } catch {}
   window.__cfxDone = true;
 }
@@ -1188,7 +1199,7 @@ const SAVE_KEY = 'cfx_resume_v1';
 const RESUMABLE = MODE === 'online' && !DEBUG && !PREVIEW && !DESIGN;
 function clearSaved() {
   try {
-    localStorage.removeItem(SAVE_KEY);
+    LS.removeItem(SAVE_KEY);
   } catch {}
 }
 function persist() {
@@ -1197,7 +1208,7 @@ function persist() {
   if (sid === 'end') return;
   const ss = S.stimState;
   try {
-    localStorage.setItem(
+    LS.setItem(
       SAVE_KEY,
       JSON.stringify({
         v: 1, ver: APP_VERSION, t: Date.now(), id: S.id, group: S.group, stepId: sid,
@@ -1211,9 +1222,9 @@ function persist() {
 function loadSaved() {
   if (!RESUMABLE) return null;
   try {
-    const r = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
+    const r = JSON.parse(LS.getItem(SAVE_KEY) || 'null');
     if (!r || r.v !== 1 || r.ver !== APP_VERSION || Date.now() - r.t > 7 * 86400000) return null;
-    if (localStorage.getItem('cfx_participated')) return null;
+    if (LS.getItem('cfx_participated')) return null;
     const idx = STEPS.indexOf(r.stepId);
     return idx >= STEPS.indexOf('guide') && idx >= 0 ? { ...r, idx } : null;
   } catch {
@@ -1248,7 +1259,7 @@ addEventListener('pagehide', persist);
 document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && persist());
 
 // 메신저(인앱) 브라우저 안내: 짧은 문구 + '브라우저에서 열기' 버튼 하나
-const UA = navigator.userAgent;
+const UA = MOCK && params.get('ua') === 'kakao' ? 'Mozilla/5.0 (iPhone) KAKAOTALK 10.0' : navigator.userAgent; // 목업: ?ua=kakao 로 인앱 브라우저 안내 확인
 const INAPP = /KAKAOTALK|NAVER\(inapp|Line\/|Instagram|FBAN|FBAV|DaumApps|everytimeApp|BAND\//i.test(UA);
 const IS_KAKAO = /KAKAOTALK/i.test(UA);
 const IS_LINE = /Line\//i.test(UA);
@@ -1300,13 +1311,13 @@ history.replaceState({ s: 0 }, '');
 history.pushState({ s: 0 }, '');
 window.addEventListener('popstate', () => history.pushState({ s: S.stepIdx }, ''));
 window.addEventListener('beforeunload', (e) => {
-  if (!DESIGN && S.id && currentStepId() !== 'end' && currentStepId() !== 'endpre') {
+  if (!DESIGN && !MOCK && S.id && currentStepId() !== 'end' && currentStepId() !== 'endpre') {
     e.preventDefault();
     e.returnValue = '';
   }
 });
 
-if (DEBUG) {
+if (DEBUG || DESIGN || MOCK) {
   window.__cfx = { S, STEPS, store, go };
 }
 if (PREVIEW) {
@@ -1322,7 +1333,7 @@ if (DESIGN) {
   document.getElementById('dz-p').onclick = () => go(-1);
   document.getElementById('dz-n').onclick = () => go(1);
   document.getElementById('dz-o').onclick = () => renderScreenedOut();
-  document.getElementById('dz-r').onclick = () => (location.href = location.pathname + '?design=1');
+  document.getElementById('dz-r').onclick = () => (location.href = location.pathname + (location.search || '?design=1'));
   setInterval(() => (document.getElementById('dz-l').textContent = `검토 ${S.stepIdx + 1}/${STEPS.length} ${currentStepId()}`), 300);
 }
 // ---------- 파일럿 접수 마감 ----------
@@ -1337,10 +1348,12 @@ function closeWhenText() {
 }
 async function isClosed() {
   if (!CONFIG.CLOSE_AT || DESIGN || DEBUG || PREVIEW) return false;
+  if (MOCK && !params.get('now')) return false; // 목업은 ?now=after|before 로 요청할 때만 마감 화면을 본다
   const close = Date.parse(CONFIG.CLOSE_AT);
   if (!Number.isFinite(close)) return false;
   if (DEV_OK && params.get('now')) {
-    const t = Date.parse(params.get('now')); // 시험용: ?now=2026-11-03T19:01:00+09:00 (로컬 서버에서만)
+    const np = params.get('now'); // 시험용: ?now=2026-11-03T19:01:00+09:00 (로컬 서버·목업에서만). 목업은 now=after(마감 1분 후) / before(마감 1분 전)도 쓴다
+    const t = np === 'after' ? close + 60000 : np === 'before' ? close - 60000 : Date.parse(np);
     if (Number.isFinite(t)) return t >= close;
   }
   let now = Date.now();
@@ -1362,10 +1375,14 @@ function renderClosed() {
   const d = new Date(CONFIG.CLOSE_AT);
   const when = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric', weekday: 'short', hour: 'numeric', minute: '2-digit', hour12: true }).format(d);
   const when2 = when.replace(/(\d+):00/, '$1시');
+  // 파일럿(PILOT_NOTICE가 있을 때)과 본 실험의 마감 문구를 나눈다. 본 실험에서는 PILOT_NOTICE를 비우면 아래 두 번째 문구가 쓰인다.
   frame(
-    `<h1 class="h1">파일럿 테스트가<br>종료되었습니다</h1>
+    CONFIG.PILOT_NOTICE
+      ? `<h1 class="h1">파일럿 테스트가<br>종료되었습니다</h1>
      <p class="lead">참여에 관심을 가져 주셔서 감사합니다. 이번 파일럿 테스트는 <b>${esc(when2)}</b>에 마감되었습니다.</p>
-     <p class="lead">본 테스트가 시작되면 다시 안내드리겠습니다.</p>`,
+     <p class="lead">본 테스트가 시작되면 다시 안내드리겠습니다.</p>`
+      : `<h1 class="h1">참여 접수가<br>마감되었습니다</h1>
+     <p class="lead">참여에 관심을 가져 주셔서 감사합니다. 이 연구는 <b>${esc(when2)}</b>에 접수를 마감했습니다.</p>`,
     { progress: false }
   );
 }
